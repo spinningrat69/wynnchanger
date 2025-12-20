@@ -8,7 +8,7 @@
     "greg"
   ],
   "contact": {},
-  "license": "All-Rights-Reserved",
+  "license": "MIT",
   "icon": "assets/wynnchanger/icon.png",
   "environment": "client",
   "entrypoints": {

@@ -80,7 +80,7 @@ public final class SkinModelOverride {
             return false;
         }
         if (entity == null) {
-            return false;
+            return mode == ModelTransformationMode.GUI;
         }
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.player.getId() != entity.getId()) {

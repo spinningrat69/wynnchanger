@@ -118,7 +118,7 @@ public class SkinChangerScreen extends Screen {
         int searchY = panelTop + SEARCH_TOP_OFFSET;
         searchField = new TextFieldWidget(textRenderer, searchX, searchY, gridTotalWidth, SEARCH_HEIGHT, Text.literal("Search"));
         searchField.setText(searchText);
-        searchField.setSuggestion("Search skins...");
+        searchField.setSuggestion(searchText.isEmpty() ? "Search skins..." : "");
         searchField.setChangedListener(text -> {
             searchText = text;
             page = 0;

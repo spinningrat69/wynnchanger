@@ -84,10 +84,13 @@ public final class SkinModelOverride {
             return false;
         }
         if (entity == null) {
-            return isRelevantStack(original, client.player);
+            return mode == ModelTransformationMode.GUI && isRelevantStack(original, client.player);
         }
         if (client.player.getId() != entity.getId()) {
             return false;
+        }
+        if (isHandMode(mode)) {
+            return true;
         }
         return isRelevantStack(original, client.player);
     }
@@ -104,6 +107,14 @@ public final class SkinModelOverride {
                 || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.CHEST))
                 || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.LEGS))
                 || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.FEET));
+    }
+
+    private static boolean isHandMode(ModelTransformationMode mode) {
+        return switch (mode) {
+            case FIRST_PERSON_LEFT_HAND, FIRST_PERSON_RIGHT_HAND,
+                    THIRD_PERSON_LEFT_HAND, THIRD_PERSON_RIGHT_HAND -> true;
+            default -> false;
+        };
     }
 
 

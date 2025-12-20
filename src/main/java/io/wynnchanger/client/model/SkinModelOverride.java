@@ -94,7 +94,7 @@ public final class SkinModelOverride {
             return false;
         }
         ItemStack targetStack = resolveHandStack(entity, mode);
-        return !targetStack.isEmpty() && original == targetStack;
+        return !targetStack.isEmpty() && ItemStack.areEqual(original, targetStack);
     }
 
     private static boolean isHandMode(ModelTransformationMode mode) {

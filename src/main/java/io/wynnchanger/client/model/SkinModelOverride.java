@@ -13,6 +13,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Arm;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,7 +38,7 @@ public final class SkinModelOverride {
         if (original == null || original.isEmpty()) {
             return original;
         }
-        if (!shouldApply(entity, mode)) {
+        if (!shouldApply(original, entity, mode)) {
             return original;
         }
         SkinType type = WynnItemClassifier.classify(original);
@@ -74,15 +75,44 @@ public final class SkinModelOverride {
         return Optional.of(stack);
     }
 
-    private static boolean shouldApply(LivingEntity entity, ModelTransformationMode mode) {
+    private static boolean shouldApply(ItemStack original, LivingEntity entity, ModelTransformationMode mode) {
         if (Boolean.TRUE.equals(SUPPRESS_OVERRIDE.get())) {
             return false;
         }
         if (entity == null) {
-            return mode == ModelTransformationMode.GUI;
+            return false;
         }
         MinecraftClient client = MinecraftClient.getInstance();
-        return client.player != null && client.player.getId() == entity.getId();
+        if (client.player == null || client.player.getId() != entity.getId()) {
+            return false;
+        }
+        return isHeldStack(original, entity, mode);
+    }
+
+    private static boolean isHeldStack(ItemStack original, LivingEntity entity, ModelTransformationMode mode) {
+        if (!isHandMode(mode)) {
+            return false;
+        }
+        ItemStack targetStack = resolveHandStack(entity, mode);
+        return !targetStack.isEmpty() && original == targetStack;
+    }
+
+    private static boolean isHandMode(ModelTransformationMode mode) {
+        return switch (mode) {
+            case FIRST_PERSON_LEFT_HAND, FIRST_PERSON_RIGHT_HAND,
+                    THIRD_PERSON_LEFT_HAND, THIRD_PERSON_RIGHT_HAND -> true;
+            default -> false;
+        };
+    }
+
+    private static ItemStack resolveHandStack(LivingEntity entity, ModelTransformationMode mode) {
+        boolean leftHand = mode == ModelTransformationMode.FIRST_PERSON_LEFT_HAND
+                || mode == ModelTransformationMode.THIRD_PERSON_LEFT_HAND;
+        boolean mainIsLeft = entity.getMainArm() == Arm.LEFT;
+        if (leftHand) {
+            return mainIsLeft ? entity.getMainHandStack() : entity.getOffHandStack();
+        }
+        return mainIsLeft ? entity.getOffHandStack() : entity.getMainHandStack();
     }
 
     static void applyMappingToStack(ItemStack stack, SkinModelMapping mapping) {

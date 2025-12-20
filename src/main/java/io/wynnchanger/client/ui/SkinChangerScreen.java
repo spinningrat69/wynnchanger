@@ -13,6 +13,7 @@ import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.client.gui.widget.PressableWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
@@ -21,6 +22,7 @@ import net.minecraft.util.Identifier;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -39,12 +41,17 @@ public class SkinChangerScreen extends Screen {
     private static final int GRID_GAP = 16;
     private static final int GRID_TOP_OFFSET = 64;
     private static final int TYPE_TOP_OFFSET = 48;
-    private static final int PREVIEW_TOP_GAP = 40;
+    private static final int PREVIEW_TOP_GAP = 24;
     private static final int PREVIEW_BOTTOM_PADDING = 2;
     private static final int SIDEBAR_RIGHT_PADDING = 24;
     private static final int NAV_Y_GAP = 6;
     private static final int TITLE_Y = 20;
     private static final int EMPTY_MESSAGE_OFFSET = 26;
+    private static final int SEARCH_HEIGHT = 20;
+    private static final int SEARCH_TOP_OFFSET = 22;
+    private static final int SEARCH_BOTTOM_GAP = 12;
+    private static final int CLEAR_BUTTON_HEIGHT = 20;
+    private static final int CLEAR_BUTTON_GAP = 8;
 
     private SkinType detectedType = SkinType.UNKNOWN;
     private SkinType selectedType;
@@ -68,6 +75,8 @@ public class SkinChangerScreen extends Screen {
     private int previewTop = 0;
     private int previewBottom = 0;
     private final Map<Identifier, Optional<ItemStack>> previewCache = new HashMap<>();
+    private TextFieldWidget searchField;
+    private String searchText = "";
 
     public SkinChangerScreen() {
         super(Text.literal("Wynnchanger"));
@@ -79,10 +88,11 @@ public class SkinChangerScreen extends Screen {
     }
 
     private void rebuildWidgets() {
+        boolean keepSearchFocus = searchField != null && searchField.isFocused();
         clearChildren();
         refreshDetectedType();
         SkinType activeType = getActiveType();
-        entries = WynnchangerClient.getSkinRegistry().getSkins(activeType);
+        entries = filterEntries(WynnchangerClient.getSkinRegistry().getSkins(activeType));
         clampPage();
 
         panelLeft = PANEL_PADDING;
@@ -103,7 +113,20 @@ public class SkinChangerScreen extends Screen {
         }
         gridTotalWidth = COLUMNS * buttonWidth + (COLUMNS - 1) * GRID_PADDING;
         gridStartX = gridAreaLeft + Math.max(0, (gridAreaWidth - gridTotalWidth) / 2);
-        gridStartY = panelTop + GRID_TOP_OFFSET;
+
+        int searchX = gridStartX;
+        int searchY = panelTop + SEARCH_TOP_OFFSET;
+        searchField = new TextFieldWidget(textRenderer, searchX, searchY, gridTotalWidth, SEARCH_HEIGHT, Text.literal("Search"));
+        searchField.setText(searchText);
+        searchField.setChangedListener(text -> {
+            searchText = text;
+            page = 0;
+            rebuildWidgets();
+        });
+        searchField.setFocused(keepSearchFocus);
+        addDrawableChild(searchField);
+
+        gridStartY = searchY + SEARCH_HEIGHT + SEARCH_BOTTOM_GAP;
 
         int startIndex = page * ITEMS_PER_PAGE;
         int endIndex = Math.min(entries.size(), startIndex + ITEMS_PER_PAGE);
@@ -161,7 +184,13 @@ public class SkinChangerScreen extends Screen {
                 .build());
 
         int typeListHeight = types.length * (TYPE_BUTTON_HEIGHT + TYPE_PADDING) - TYPE_PADDING;
-        previewTop = typeStartY + typeListHeight + PREVIEW_TOP_GAP;
+        int clearY = typeStartY + typeListHeight + CLEAR_BUTTON_GAP;
+        addDrawableChild(ButtonWidget.builder(Text.literal("Clear"), button -> {
+            WynnchangerClient.getSwapState().clearSelection(getActiveType());
+            rebuildWidgets();
+        }).dimensions(sidebarLeft, clearY, sidebarRight - sidebarLeft, CLEAR_BUTTON_HEIGHT).build());
+
+        previewTop = clearY + CLEAR_BUTTON_HEIGHT + PREVIEW_TOP_GAP;
         previewBottom = panelBottom - PREVIEW_BOTTOM_PADDING;
         previewLeft = sidebarLeft;
         previewRight = sidebarRight;
@@ -173,6 +202,16 @@ public class SkinChangerScreen extends Screen {
 
     private Optional<ItemStack> getPreviewStack(Identifier modelId) {
         return previewCache.computeIfAbsent(modelId, SkinModelOverride::buildStackForModel);
+    }
+
+    private List<SkinEntry> filterEntries(List<SkinEntry> source) {
+        if (searchText == null || searchText.isBlank()) {
+            return source;
+        }
+        String query = searchText.toLowerCase(Locale.ROOT);
+        return source.stream()
+                .filter(entry -> entry.displayName().toLowerCase(Locale.ROOT).contains(query))
+                .toList();
     }
 
     private void refreshDetectedType() {

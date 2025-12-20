@@ -27,23 +27,33 @@ public class WynnHatFeatureRenderer extends FeatureRenderer<PlayerEntityRenderSt
     @Override
     public void render(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light,
                        PlayerEntityRenderState state, float limbAngle, float limbDistance) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.world == null) {
+        Optional<ItemStack> hatStack = resolveHatStack(state);
+        if (hatStack.isEmpty()) {
             return;
         }
+        renderHat(matrices, vertexConsumers, light, state, hatStack.get());
+    }
+
+    private Optional<ItemStack> resolveHatStack(PlayerEntityRenderState state) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null || client.world == null) {
+            return Optional.empty();
+        }
         if (state == null || client.player.getId() != state.id) {
-            return;
+            return Optional.empty();
         }
 
         SkinSwapState swapState = WynnchangerClient.getSwapState();
         Optional<Identifier> selection = swapState.getSelection(SkinType.HAT);
         if (selection.isEmpty()) {
-            return;
+            return Optional.empty();
         }
-        Optional<ItemStack> stack = SkinModelOverride.buildStackForModel(selection.get());
-        if (stack.isEmpty()) {
-            return;
-        }
+        return SkinModelOverride.buildStackForModel(selection.get());
+    }
+
+    private void renderHat(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light,
+                           PlayerEntityRenderState state, ItemStack stack) {
+        MinecraftClient client = MinecraftClient.getInstance();
 
         matrices.push();
         getContextModel().head.rotate(matrices);
@@ -51,7 +61,7 @@ public class WynnHatFeatureRenderer extends FeatureRenderer<PlayerEntityRenderSt
         matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180.0F));
         matrices.scale(0.625F, -0.625F, -0.625F);
         client.getItemRenderer().renderItem(
-                stack.get(),
+                stack,
                 ModelTransformationMode.HEAD,
                 light,
                 OverlayTexture.DEFAULT_UV,

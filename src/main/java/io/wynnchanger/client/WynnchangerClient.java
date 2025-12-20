@@ -35,23 +35,30 @@ public class WynnchangerClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(SKIN_REGISTRY);
+        initRegistry();
+        initState();
+        initKeybinds();
+        initRenderers();
 
+        LOGGER.info("Wynnchanger client initialized.");
+    }
+
+    private void initRegistry() {
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(SKIN_REGISTRY);
+    }
+
+    private void initState() {
         SWAP_STATE.setConfigPath(FabricLoader.getInstance().getConfigDir().resolve("wynnchanger.json"));
         SWAP_STATE.load();
+    }
 
+    private void initKeybinds() {
         openGuiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.wynnchanger.open_gui",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_O,
                 "category.wynnchanger"
         ));
-
-        LivingEntityFeatureRendererRegistrationCallback.EVENT.register((entityType, entityRenderer, registrationHelper, context) -> {
-            if (entityRenderer instanceof PlayerEntityRenderer playerRenderer) {
-                registrationHelper.register(new WynnHatFeatureRenderer(playerRenderer));
-            }
-        });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openGuiKey.wasPressed()) {
@@ -61,7 +68,13 @@ public class WynnchangerClient implements ClientModInitializer {
                 client.setScreen(new SkinChangerScreen());
             }
         });
+    }
 
-        LOGGER.info("Wynnchanger client initialized.");
+    private void initRenderers() {
+        LivingEntityFeatureRendererRegistrationCallback.EVENT.register((entityType, entityRenderer, registrationHelper, context) -> {
+            if (entityRenderer instanceof PlayerEntityRenderer playerRenderer) {
+                registrationHelper.register(new WynnHatFeatureRenderer(playerRenderer));
+            }
+        });
     }
 }

@@ -13,7 +13,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.Arm;
+import net.minecraft.entity.EquipmentSlot;
 
 import java.util.List;
 import java.util.Optional;
@@ -79,40 +79,31 @@ public final class SkinModelOverride {
         if (Boolean.TRUE.equals(SUPPRESS_OVERRIDE.get())) {
             return false;
         }
-        if (entity == null) {
-            return mode == ModelTransformationMode.GUI;
-        }
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.player.getId() != entity.getId()) {
+        if (client.player == null) {
             return false;
         }
-        return isHeldStack(original, entity, mode);
-    }
-
-    private static boolean isHeldStack(ItemStack original, LivingEntity entity, ModelTransformationMode mode) {
-        if (!isHandMode(mode)) {
+        if (entity == null) {
+            return mode == ModelTransformationMode.GUI && isRelevantStack(original, client.player);
+        }
+        if (client.player.getId() != entity.getId()) {
             return false;
         }
-        ItemStack targetStack = resolveHandStack(entity, mode);
-        return !targetStack.isEmpty() && ItemStack.areEqual(original, targetStack);
+        return isRelevantStack(original, client.player);
     }
 
-    private static boolean isHandMode(ModelTransformationMode mode) {
-        return switch (mode) {
-            case FIRST_PERSON_LEFT_HAND, FIRST_PERSON_RIGHT_HAND,
-                    THIRD_PERSON_LEFT_HAND, THIRD_PERSON_RIGHT_HAND -> true;
-            default -> false;
-        };
-    }
-
-    private static ItemStack resolveHandStack(LivingEntity entity, ModelTransformationMode mode) {
-        boolean leftHand = mode == ModelTransformationMode.FIRST_PERSON_LEFT_HAND
-                || mode == ModelTransformationMode.THIRD_PERSON_LEFT_HAND;
-        boolean mainIsLeft = entity.getMainArm() == Arm.LEFT;
-        if (leftHand) {
-            return mainIsLeft ? entity.getMainHandStack() : entity.getOffHandStack();
+    private static boolean isRelevantStack(ItemStack original, LivingEntity entity) {
+        if (original == null || original.isEmpty()) {
+            return false;
         }
-        return mainIsLeft ? entity.getOffHandStack() : entity.getMainHandStack();
+        if (ItemStack.areEqual(original, entity.getMainHandStack())
+                || ItemStack.areEqual(original, entity.getOffHandStack())) {
+            return true;
+        }
+        return ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.HEAD))
+                || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.CHEST))
+                || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.LEGS))
+                || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.FEET));
     }
 
     static void applyMappingToStack(ItemStack stack, SkinModelMapping mapping) {

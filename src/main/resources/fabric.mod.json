@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "wynnchanger",
+  "version": "${version}",
+  "name": "Wynnchanger",
+  "description": "Client-side Wynncraft skin changer.",
+  "authors": [
+    "greg"
+  ],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/wynnchanger/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "io.wynnchanger.client.WynnchangerClient"
+    ]
+  },
+  "mixins": [
+    "wynnchanger.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}

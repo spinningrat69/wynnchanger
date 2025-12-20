@@ -45,7 +45,6 @@ public class SkinChangerScreen extends Screen {
     private static final int PREVIEW_BOTTOM_PADDING = 2;
     private static final int SIDEBAR_RIGHT_PADDING = 24;
     private static final int NAV_Y_GAP = 6;
-    private static final int TITLE_Y = 20;
     private static final int EMPTY_MESSAGE_OFFSET = 26;
     private static final int SEARCH_HEIGHT = 20;
     private static final int SEARCH_TOP_OFFSET = 22;
@@ -245,7 +244,6 @@ public class SkinChangerScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         renderBackground(context, mouseX, mouseY, delta);
-        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, TITLE_Y, 0xFFFFFF);
 
         if (entries.isEmpty()) {
             context.drawCenteredTextWithShadow(textRenderer,

@@ -32,47 +32,17 @@ public class SkinChangerScreen extends Screen {
     private static final int ITEMS_PER_PAGE = COLUMNS * ROWS;
     private static final int MIN_BUTTON_WIDTH = 170;
     private static final int MAX_BUTTON_WIDTH = 190;
+    private static final int MIN_NARROW_BUTTON_WIDTH = 120;
     private static final int BUTTON_HEIGHT = 60;
-    private static final int GRID_PADDING = 8;
     private static final int TYPE_BUTTON_HEIGHT = 20;
-    private static final int TYPE_PADDING = 6;
-    private static final int PANEL_PADDING = 12;
-    private static final int SIDEBAR_WIDTH = 220;
-    private static final int GRID_GAP = 16;
-    private static final int GRID_TOP_OFFSET = 64;
-    private static final int TYPE_TOP_OFFSET = 48;
-    private static final int PREVIEW_TOP_GAP = 24;
-    private static final int PREVIEW_BOTTOM_PADDING = 2;
-    private static final int SIDEBAR_RIGHT_PADDING = 24;
-    private static final int NAV_Y_GAP = 6;
-    private static final int EMPTY_MESSAGE_OFFSET = 26;
     private static final int SEARCH_HEIGHT = 20;
-    private static final int SEARCH_TOP_OFFSET = 22;
-    private static final int SEARCH_BOTTOM_GAP = 12;
     private static final int CLEAR_BUTTON_HEIGHT = 20;
-    private static final int CLEAR_BUTTON_GAP = 8;
 
     private SkinType detectedType = SkinType.UNKNOWN;
     private SkinType selectedType;
     private List<SkinEntry> entries = List.of();
     private int page = 0;
-    private int gridStartY = 200;
-    private int gridStartX = 0;
-    private int gridTotalWidth = 0;
-    private int buttonWidth = MIN_BUTTON_WIDTH;
-    private int navY = 0;
-    private int typeStartX = 0;
-    private int typeStartY = 0;
-    private int panelLeft = 0;
-    private int panelRight = 0;
-    private int panelTop = 0;
-    private int panelBottom = 0;
-    private int sidebarLeft = 0;
-    private int sidebarRight = 0;
-    private int previewLeft = 0;
-    private int previewRight = 0;
-    private int previewTop = 0;
-    private int previewBottom = 0;
+    private Layout layout;
     private final Map<Identifier, Optional<ItemStack>> previewCache = new HashMap<>();
     private TextFieldWidget searchField;
     private String searchText = "";
@@ -94,28 +64,20 @@ public class SkinChangerScreen extends Screen {
         entries = filterEntries(WynnchangerClient.getSkinRegistry().getSkins(activeType));
         clampPage();
 
-        panelLeft = PANEL_PADDING;
-        panelRight = width - PANEL_PADDING;
-        panelTop = PANEL_PADDING;
-        panelBottom = height - PANEL_PADDING;
+        SkinType[] types = {
+                SkinType.DAGGER,
+                SkinType.SPEAR,
+                SkinType.WAND,
+                SkinType.BOW,
+                SkinType.RELIK,
+                SkinType.HAT
+        };
 
-        sidebarLeft = panelLeft;
-        sidebarRight = Math.min(panelLeft + SIDEBAR_WIDTH, panelRight - SIDEBAR_RIGHT_PADDING);
+        layout = Layout.of(width, height, types.length);
 
-        int gridAreaLeft = sidebarRight + GRID_GAP;
-        int gridAreaRight = panelRight;
-        int gridAreaWidth = Math.max(0, gridAreaRight - gridAreaLeft);
-        int maxWidth = (gridAreaWidth - (COLUMNS - 1) * GRID_PADDING) / COLUMNS;
-        buttonWidth = Math.min(MAX_BUTTON_WIDTH, Math.max(MIN_BUTTON_WIDTH, maxWidth));
-        if (maxWidth < MIN_BUTTON_WIDTH) {
-            buttonWidth = Math.max(120, maxWidth);
-        }
-        gridTotalWidth = COLUMNS * buttonWidth + (COLUMNS - 1) * GRID_PADDING;
-        gridStartX = gridAreaLeft + Math.max(0, (gridAreaWidth - gridTotalWidth) / 2);
-
-        int searchX = gridStartX;
-        int searchY = panelTop + SEARCH_TOP_OFFSET;
-        searchField = new TextFieldWidget(textRenderer, searchX, searchY, gridTotalWidth, SEARCH_HEIGHT, Text.literal("Search"));
+        int searchX = layout.searchX;
+        int searchY = layout.searchY;
+        searchField = new TextFieldWidget(textRenderer, searchX, searchY, layout.gridTotalWidth, SEARCH_HEIGHT, Text.literal("Search"));
         searchField.setText(searchText);
         searchField.setSuggestion(searchText.isEmpty() ? "Search skins..." : "");
         searchField.setChangedListener(text -> {
@@ -126,8 +88,6 @@ public class SkinChangerScreen extends Screen {
         searchField.setFocused(keepSearchFocus);
         addDrawableChild(searchField);
 
-        gridStartY = searchY + SEARCH_HEIGHT + SEARCH_BOTTOM_GAP;
-
         int startIndex = page * ITEMS_PER_PAGE;
         int endIndex = Math.min(entries.size(), startIndex + ITEMS_PER_PAGE);
         int buttonIndex = 0;
@@ -136,46 +96,36 @@ public class SkinChangerScreen extends Screen {
             SkinEntry entry = entries.get(i);
             int row = buttonIndex / COLUMNS;
             int col = buttonIndex % COLUMNS;
-            int x = gridStartX + col * (buttonWidth + GRID_PADDING);
-            int y = gridStartY + row * (BUTTON_HEIGHT + GRID_PADDING);
-            addDrawableChild(buildSkinButton(entry, x, y, buttonWidth, BUTTON_HEIGHT));
+            int x = layout.gridStartX + col * (layout.buttonWidth + layout.gridPadding);
+            int y = layout.gridStartY + row * (BUTTON_HEIGHT + layout.gridPadding);
+            addDrawableChild(buildSkinButton(entry, x, y, layout.buttonWidth, BUTTON_HEIGHT));
             buttonIndex++;
         }
 
-        navY = gridStartY + ROWS * (BUTTON_HEIGHT + GRID_PADDING) + NAV_Y_GAP;
-
-        typeStartY = panelTop + TYPE_TOP_OFFSET;
-        typeStartX = sidebarLeft;
-        SkinType[] types = {
-                SkinType.DAGGER,
-                SkinType.SPEAR,
-                SkinType.WAND,
-                SkinType.BOW,
-                SkinType.RELIK,
-                SkinType.HAT
-        };
+        int typeStartY = layout.typeStartY;
+        int typeStartX = layout.typeStartX;
 
         for (int i = 0; i < types.length; i++) {
             int x = typeStartX;
-            int y = typeStartY + i * (TYPE_BUTTON_HEIGHT + TYPE_PADDING);
+            int y = typeStartY + i * (TYPE_BUTTON_HEIGHT + layout.typePadding);
             SkinType type = types[i];
             Text label = Text.literal(type.getDisplayName());
             addDrawableChild(ButtonWidget.builder(label, button -> {
                 selectedType = type;
                 page = 0;
                 rebuildWidgets();
-            }).dimensions(x, y, sidebarRight - sidebarLeft, TYPE_BUTTON_HEIGHT).build());
+            }).dimensions(x, y, layout.sidebarRight - layout.sidebarLeft, TYPE_BUTTON_HEIGHT).build());
         }
         if (entries.size() > ITEMS_PER_PAGE) {
             addDrawableChild(ButtonWidget.builder(Text.literal("< Prev"), button -> {
                 page = Math.max(0, page - 1);
                 rebuildWidgets();
-            }).dimensions(gridStartX, navY, 90, 20).build());
+            }).dimensions(layout.gridStartX, layout.navY, 90, 20).build());
 
             addDrawableChild(ButtonWidget.builder(Text.literal("Next >"), button -> {
                 page = Math.min(getMaxPage(), page + 1);
                 rebuildWidgets();
-            }).dimensions(gridStartX + gridTotalWidth - 90, navY, 90, 20).build());
+            }).dimensions(layout.gridStartX + layout.gridTotalWidth - 90, layout.navY, 90, 20).build());
         }
 
         int bottomY = height - 30;
@@ -183,17 +133,11 @@ public class SkinChangerScreen extends Screen {
                 .dimensions(width / 2 - 50, bottomY, 100, 20)
                 .build());
 
-        int typeListHeight = types.length * (TYPE_BUTTON_HEIGHT + TYPE_PADDING) - TYPE_PADDING;
-        int clearY = typeStartY + typeListHeight + CLEAR_BUTTON_GAP;
+        int clearY = layout.clearY;
         addDrawableChild(ButtonWidget.builder(Text.literal("Clear All"), button -> {
             WynnchangerClient.getSwapState().clearAllSelections();
             rebuildWidgets();
-        }).dimensions(sidebarLeft, clearY, sidebarRight - sidebarLeft, CLEAR_BUTTON_HEIGHT).build());
-
-        previewTop = clearY + CLEAR_BUTTON_HEIGHT + PREVIEW_TOP_GAP;
-        previewBottom = panelBottom - PREVIEW_BOTTOM_PADDING;
-        previewLeft = sidebarLeft;
-        previewRight = sidebarRight;
+        }).dimensions(layout.sidebarLeft, clearY, layout.sidebarRight - layout.sidebarLeft, CLEAR_BUTTON_HEIGHT).build());
     }
 
     private PressableWidget buildSkinButton(SkinEntry entry, int x, int y, int width, int height) {
@@ -243,13 +187,16 @@ public class SkinChangerScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        if (layout == null) {
+            rebuildWidgets();
+        }
         renderBackground(context, mouseX, mouseY, delta);
 
         if (entries.isEmpty()) {
             context.drawCenteredTextWithShadow(textRenderer,
                     Text.literal("No skins found for this item."),
                     width / 2,
-                    gridStartY + EMPTY_MESSAGE_OFFSET,
+                    layout.gridStartY + layout.emptyMessageOffset,
                     0xFF5555);
         }
 
@@ -270,14 +217,131 @@ public class SkinChangerScreen extends Screen {
             return;
         }
 
-        int previewHeight = previewBottom - previewTop;
+        int previewHeight = layout.previewBottom - layout.previewTop;
         if (previewHeight < 32) {
             return;
         }
 
-        int previewWidth = previewRight - previewLeft;
+        int previewWidth = layout.previewRight - layout.previewLeft;
         int size = Math.max(28, Math.min(previewWidth, previewHeight) / 2);
-        InventoryScreen.drawEntity(context, previewLeft, previewTop, previewRight, previewBottom, size, 0.0F, mouseX, mouseY, client.player);
+        InventoryScreen.drawEntity(context, layout.previewLeft, layout.previewTop, layout.previewRight, layout.previewBottom, size, 0.0F, mouseX, mouseY, client.player);
+    }
+
+    private static int scaleWidth(int width, float ratio, int min, int max) {
+        return clamp(Math.round(width * ratio), min, max);
+    }
+
+    private static int scaleHeight(int height, float ratio, int min, int max) {
+        return clamp(Math.round(height * ratio), min, max);
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private record Layout(
+            int panelLeft,
+            int panelRight,
+            int panelTop,
+            int panelBottom,
+            int sidebarLeft,
+            int sidebarRight,
+            int gridPadding,
+            int typePadding,
+            int buttonWidth,
+            int gridTotalWidth,
+            int gridStartX,
+            int gridStartY,
+            int searchX,
+            int searchY,
+            int navY,
+            int typeStartX,
+            int typeStartY,
+            int clearY,
+            int previewLeft,
+            int previewRight,
+            int previewTop,
+            int previewBottom,
+            int emptyMessageOffset
+    ) {
+        private static Layout of(int width, int height, int typeCount) {
+            int panelPadding = scaleWidth(width, 0.02f, 10, 20);
+            int panelLeft = panelPadding;
+            int panelRight = width - panelPadding;
+            int panelTop = panelPadding;
+            int panelBottom = height - panelPadding;
+
+            int sidebarWidth = scaleWidth(width, 0.22f, 200, 260);
+            int sidebarRightPadding = scaleWidth(width, 0.02f, 16, 28);
+            int sidebarLeft = panelLeft;
+            int sidebarRight = Math.min(panelLeft + sidebarWidth, panelRight - sidebarRightPadding);
+
+            int gridGap = scaleWidth(width, 0.02f, 12, 20);
+            int gridAreaLeft = sidebarRight + gridGap;
+            int gridAreaRight = panelRight;
+            int gridAreaWidth = Math.max(0, gridAreaRight - gridAreaLeft);
+            int gridPadding = scaleWidth(width, 0.008f, 6, 10);
+            int maxWidth = (gridAreaWidth - (COLUMNS - 1) * gridPadding) / COLUMNS;
+            int buttonWidth = Math.min(MAX_BUTTON_WIDTH, Math.max(MIN_BUTTON_WIDTH, maxWidth));
+            if (maxWidth < MIN_BUTTON_WIDTH) {
+                buttonWidth = Math.max(MIN_NARROW_BUTTON_WIDTH, maxWidth);
+            }
+            int gridTotalWidth = COLUMNS * buttonWidth + (COLUMNS - 1) * gridPadding;
+            int gridStartX = gridAreaLeft + Math.max(0, (gridAreaWidth - gridTotalWidth) / 2);
+
+            int searchTopOffset = scaleHeight(height, 0.035f, 18, 28);
+            int searchBottomGap = scaleHeight(height, 0.02f, 10, 16);
+            int searchX = gridStartX;
+            int searchY = panelTop + searchTopOffset;
+            int gridStartY = searchY + SEARCH_HEIGHT + searchBottomGap;
+
+            int navGap = scaleHeight(height, 0.01f, 4, 8);
+            int navY = gridStartY + ROWS * (BUTTON_HEIGHT + gridPadding) + navGap;
+
+            int typeTopOffset = scaleHeight(height, 0.06f, 36, 56);
+            int typeStartY = panelTop + typeTopOffset;
+            int typeStartX = sidebarLeft;
+            int typePadding = scaleHeight(height, 0.01f, 6, 10);
+            int typeListHeight = typeCount * (TYPE_BUTTON_HEIGHT + typePadding) - typePadding;
+
+            int clearGap = scaleHeight(height, 0.012f, 6, 12);
+            int clearY = typeStartY + typeListHeight + clearGap;
+
+            int previewTopGap = scaleHeight(height, 0.03f, 18, 30);
+            int previewBottomPadding = scaleHeight(height, 0.008f, 2, 6);
+            int previewTop = clearY + CLEAR_BUTTON_HEIGHT + previewTopGap;
+            int previewBottom = panelBottom - previewBottomPadding;
+            int previewLeft = sidebarLeft;
+            int previewRight = sidebarRight;
+
+            int emptyMessageOffset = Math.round(BUTTON_HEIGHT * 0.45f);
+
+            return new Layout(
+                    panelLeft,
+                    panelRight,
+                    panelTop,
+                    panelBottom,
+                    sidebarLeft,
+                    sidebarRight,
+                    gridPadding,
+                    typePadding,
+                    buttonWidth,
+                    gridTotalWidth,
+                    gridStartX,
+                    gridStartY,
+                    searchX,
+                    searchY,
+                    navY,
+                    typeStartX,
+                    typeStartY,
+                    clearY,
+                    previewLeft,
+                    previewRight,
+                    previewTop,
+                    previewBottom,
+                    emptyMessageOffset
+            );
+        }
     }
 
     private final class SkinEntryWidget extends PressableWidget {

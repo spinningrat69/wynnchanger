@@ -96,6 +96,14 @@ public class SkinSwapState {
         }
     }
 
+    public void clearAllSelections() {
+        if (selectedByType.isEmpty()) {
+            return;
+        }
+        selectedByType.clear();
+        dirty = true;
+    }
+
     private void loadFromDisk(Path path) {
         if (!Files.exists(path)) {
             return;

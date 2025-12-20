@@ -84,10 +84,7 @@ public final class SkinModelOverride {
             return false;
         }
         if (entity == null) {
-            if (mode == ModelTransformationMode.GUI || isHandMode(mode)) {
-                return isRelevantStack(original, client.player);
-            }
-            return false;
+            return isRelevantStack(original, client.player);
         }
         if (client.player.getId() != entity.getId()) {
             return false;
@@ -109,13 +106,6 @@ public final class SkinModelOverride {
                 || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.FEET));
     }
 
-    private static boolean isHandMode(ModelTransformationMode mode) {
-        return switch (mode) {
-            case FIRST_PERSON_LEFT_HAND, FIRST_PERSON_RIGHT_HAND,
-                    THIRD_PERSON_LEFT_HAND, THIRD_PERSON_RIGHT_HAND -> true;
-            default -> false;
-        };
-    }
 
     static void applyMappingToStack(ItemStack stack, SkinModelMapping mapping) {
         if (mapping.propertyType() == SkinPropertyType.CUSTOM_MODEL_DATA) {

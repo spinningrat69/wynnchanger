@@ -186,8 +186,8 @@ public class SkinChangerScreen extends Screen {
 
         int typeListHeight = types.length * (TYPE_BUTTON_HEIGHT + TYPE_PADDING) - TYPE_PADDING;
         int clearY = typeStartY + typeListHeight + CLEAR_BUTTON_GAP;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Clear"), button -> {
-            WynnchangerClient.getSwapState().clearSelection(getActiveType());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Clear All"), button -> {
+            WynnchangerClient.getSwapState().clearAllSelections();
             rebuildWidgets();
         }).dimensions(sidebarLeft, clearY, sidebarRight - sidebarLeft, CLEAR_BUTTON_HEIGHT).build());
 

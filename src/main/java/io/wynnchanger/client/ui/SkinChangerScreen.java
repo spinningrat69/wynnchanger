@@ -48,12 +48,18 @@ public class SkinChangerScreen extends Screen {
     private static final int TYPE_BUTTON_HEIGHT = 20;
     private static final int SEARCH_HEIGHT = 20;
     private static final int CLEAR_BUTTON_HEIGHT = 20;
-    private static final int GLINT_PANEL_PADDING = 8;
-    private static final int GLINT_PANEL_HEADER_HEIGHT = 18;
-    private static final int GLINT_ROW_HEIGHT = 22;
-    private static final int GLINT_COLUMN_GAP = 8;
-    private static final int GLINT_ROW_GAP = 4;
-    private static final int GLINT_ICON_SIZE = 16;
+    private static final int GLINT_PANEL_PADDING = 12;
+    private static final int GLINT_PANEL_HEADER_HEIGHT = 22;
+    private static final int GLINT_ROW_HEIGHT = 26;
+    private static final int GLINT_COLUMN_GAP = 10;
+    private static final int GLINT_ROW_GAP = 6;
+    private static final int GLINT_ICON_SIZE = 18;
+    private static final int GLINT_PANEL_BORDER = 1;
+    private static final int GLINT_PANEL_SHADOW = 3;
+    private static final int GLINT_PANEL_HEADER_COLOR = 0xFF262626;
+    private static final int GLINT_PANEL_BODY_COLOR = 0xFF1A1A1A;
+    private static final int GLINT_PANEL_BORDER_COLOR = 0xFF000000;
+    private static final int GLINT_PANEL_SHADOW_COLOR = 0x66000000;
 
     private SkinType detectedType = SkinType.UNKNOWN;
     private SkinType selectedType;
@@ -375,22 +381,37 @@ public class SkinChangerScreen extends Screen {
             return;
         }
         GlintPicker picker = glintPicker;
-        context.fill(0, 0, width, height, 0x88000000);
-        context.fill(picker.x, picker.y, picker.x + picker.width, picker.y + picker.height, 0xFF1A1A1A);
+        MatrixStack matrices = context.getMatrices();
+        matrices.push();
+        matrices.translate(0.0f, 0.0f, 400.0f);
 
-        Text title = Text.literal("Glint: " + picker.entry.type().getDisplayName());
+        context.fill(0, 0, width, height, 0xCC000000);
+        context.fill(picker.x - GLINT_PANEL_SHADOW, picker.y - GLINT_PANEL_SHADOW,
+                picker.x + picker.width + GLINT_PANEL_SHADOW,
+                picker.y + picker.height + GLINT_PANEL_SHADOW,
+                GLINT_PANEL_SHADOW_COLOR);
+        context.fill(picker.x, picker.y, picker.x + picker.width, picker.y + picker.height, GLINT_PANEL_BODY_COLOR);
+        context.fill(picker.x, picker.y, picker.x + picker.width, picker.y + GLINT_PANEL_HEADER_HEIGHT,
+                GLINT_PANEL_HEADER_COLOR);
+        context.fill(picker.x, picker.y, picker.x + picker.width, picker.y + GLINT_PANEL_BORDER, GLINT_PANEL_BORDER_COLOR);
+        context.fill(picker.x, picker.y + picker.height - GLINT_PANEL_BORDER,
+                picker.x + picker.width, picker.y + picker.height, GLINT_PANEL_BORDER_COLOR);
+        context.fill(picker.x, picker.y, picker.x + GLINT_PANEL_BORDER, picker.y + picker.height, GLINT_PANEL_BORDER_COLOR);
+        context.fill(picker.x + picker.width - GLINT_PANEL_BORDER, picker.y,
+                picker.x + picker.width, picker.y + picker.height, GLINT_PANEL_BORDER_COLOR);
+
+        Text title = Text.literal("Choose a glint • " + picker.entry.type().getDisplayName());
         context.drawTextWithShadow(textRenderer, title,
                 picker.x + GLINT_PANEL_PADDING,
-                picker.y + 4,
+                picker.y + 6,
                 0xFFFFFF);
 
-        if (!GlintSupport.isSupported()) {
-            context.drawTextWithShadow(textRenderer,
-                    Text.literal("Glints not detected").formatted(Formatting.RED),
-                    picker.x + GLINT_PANEL_PADDING,
-                    picker.y + 4 + textRenderer.fontHeight + 2,
-                    0xFF5555);
-        }
+        Text closeHint = Text.literal("Esc to close").formatted(Formatting.GRAY);
+        int closeWidth = textRenderer.getWidth(closeHint);
+        context.drawTextWithShadow(textRenderer, closeHint,
+                picker.x + picker.width - GLINT_PANEL_PADDING - closeWidth,
+                picker.y + 6,
+                0xAAAAAA);
 
         SkinSwapState state = WynnchangerClient.getSwapState();
         GlintType selectedGlint = state.getGlint(picker.entry.type()).orElse(GlintType.NONE);
@@ -398,8 +419,8 @@ public class SkinChangerScreen extends Screen {
             boolean hovered = cell.contains(mouseX, mouseY);
             boolean selected = cell.type == selectedGlint;
 
-            int background = hovered ? 0xFF2A2A2A : 0xFF222222;
-            int border = selected ? 0xFF6BD88A : 0xFF000000;
+            int background = hovered ? 0xFF2C2C2C : 0xFF212121;
+            int border = selected ? 0xFF6BD88A : 0xFF111111;
             context.fill(cell.x, cell.y, cell.x + cell.width, cell.y + cell.height, background);
             context.fill(cell.x, cell.y, cell.x + cell.width, cell.y + 1, border);
             context.fill(cell.x, cell.y + cell.height - 1, cell.x + cell.width, cell.y + cell.height, border);
@@ -416,6 +437,16 @@ public class SkinChangerScreen extends Screen {
             int textColor = selected ? 0xC7F4D2 : 0xFFFFFF;
             context.drawTextWithShadow(textRenderer, cell.type.getDisplayName(), textX, textY, textColor);
         }
+
+        if (!GlintSupport.isSupported()) {
+            Text warning = Text.literal("Glints not detected in active pack").formatted(Formatting.RED);
+            context.drawTextWithShadow(textRenderer,
+                    warning,
+                    picker.x + GLINT_PANEL_PADDING,
+                    picker.y + picker.height - GLINT_PANEL_PADDING - textRenderer.fontHeight,
+                    0xFF7777);
+        }
+        matrices.pop();
     }
 
     private static int scaleWidth(int width, float ratio, int min, int max) {
@@ -457,20 +488,31 @@ public class SkinChangerScreen extends Screen {
                 options.add(GlintType.NONE);
             }
 
-            int columns = options.size() <= 1 ? 1 : (screenWidth < 420 ? 2 : 3);
+            int columns;
+            if (screenWidth < 360) {
+                columns = 1;
+            } else if (screenWidth < 560) {
+                columns = 2;
+            } else {
+                columns = 3;
+            }
             columns = Math.min(columns, options.size());
             int rawColumnWidth = (screenWidth - 40 - GLINT_PANEL_PADDING * 2 - GLINT_COLUMN_GAP * (columns - 1)) / columns;
-            int columnWidth = Math.max(90, rawColumnWidth);
+            int columnWidth = Math.max(110, rawColumnWidth);
             int rows = (options.size() + columns - 1) / columns;
 
             int panelWidth = GLINT_PANEL_PADDING * 2 + columns * columnWidth + (columns - 1) * GLINT_COLUMN_GAP;
             int panelHeight = GLINT_PANEL_PADDING * 2 + GLINT_PANEL_HEADER_HEIGHT
                     + rows * GLINT_ROW_HEIGHT + Math.max(0, rows - 1) * GLINT_ROW_GAP;
 
-            int maxX = Math.max(10, screenWidth - panelWidth - 10);
-            int maxY = Math.max(10, screenHeight - panelHeight - 10);
-            int x = clamp(mouseX - panelWidth / 2, 10, maxX);
-            int y = clamp(mouseY - panelHeight / 2, 10, maxY);
+            int maxWidth = Math.max(0, screenWidth - 20);
+            if (panelWidth > maxWidth) {
+                columnWidth = Math.max(90, (maxWidth - GLINT_PANEL_PADDING * 2 - GLINT_COLUMN_GAP * (columns - 1)) / columns);
+                panelWidth = GLINT_PANEL_PADDING * 2 + columns * columnWidth + (columns - 1) * GLINT_COLUMN_GAP;
+            }
+
+            int x = clamp((screenWidth - panelWidth) / 2, 10, Math.max(10, screenWidth - panelWidth - 10));
+            int y = clamp((screenHeight - panelHeight) / 2, 10, Math.max(10, screenHeight - panelHeight - 10));
 
             int gridX = x + GLINT_PANEL_PADDING;
             int gridY = y + GLINT_PANEL_PADDING + GLINT_PANEL_HEADER_HEIGHT;

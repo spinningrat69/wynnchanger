@@ -38,7 +38,8 @@ public class ItemModelManagerMixin {
     )
     private void wynnchanger$applyGlint(ItemRenderState renderState, ItemStack stack, ModelTransformationMode mode,
                                         World world, LivingEntity entity, int seed, CallbackInfo ci) {
-        GlintType glint = WynnGlint.resolveGlintForStack(stack);
+        ItemStack effectiveStack = SkinModelOverride.overrideStack(stack, entity, mode);
+        GlintType glint = WynnGlint.resolveGlintForStack(effectiveStack);
         if (glint == null || glint.isNone()) {
             return;
         }

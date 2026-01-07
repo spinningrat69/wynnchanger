@@ -50,11 +50,11 @@ public class SkinChangerScreen extends Screen {
     private static final int CLEAR_BUTTON_HEIGHT = 20;
     private static final int GLINT_PANEL_PADDING = 12;
     private static final int GLINT_PANEL_HEADER_HEIGHT = 22;
-    private static final int GLINT_ROW_HEIGHT = 46;
+    private static final int GLINT_ROW_HEIGHT = 62;
     private static final int GLINT_COLUMN_GAP = 10;
     private static final int GLINT_ROW_GAP = 6;
-    private static final int GLINT_ICON_SIZE = 24;
-    private static final int GLINT_LABEL_GAP = 4;
+    private static final int GLINT_ICON_SIZE = 32;
+    private static final int GLINT_LABEL_GAP = 6;
     private static final int GLINT_PANEL_BORDER = 1;
     private static final int GLINT_PANEL_HEADER_COLOR = 0xFF181818;
     private static final int GLINT_PANEL_BODY_COLOR = 0xFF181818;
@@ -313,6 +313,9 @@ public class SkinChangerScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (glintPicker != null) {
             if (button == 0) {
+                if (glintPicker.startScrollbarDrag(mouseX, mouseY)) {
+                    return true;
+                }
                 GlintType glint = glintPicker.getOptionAt(mouseX, mouseY);
                 if (glint != null) {
                     WynnchangerClient.getSwapState().setGlint(glintPicker.entry.type(), glint);
@@ -335,6 +338,7 @@ public class SkinChangerScreen extends Screen {
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (glintPicker != null) {
+            glintPicker.stopScrollbarDrag();
             return true;
         }
         if (previewDragging && button == 0) {
@@ -348,6 +352,9 @@ public class SkinChangerScreen extends Screen {
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
         if (glintPicker != null) {
+            if (glintPicker.dragScrollbar(mouseY)) {
+                return true;
+            }
             return true;
         }
         if (previewDragging && button == 0) {
@@ -449,9 +456,17 @@ public class SkinChangerScreen extends Screen {
             int iconX = cell.x + (cell.width - GLINT_ICON_SIZE) / 2;
             int iconY = cellY + 6;
             picker.previewStack.ifPresent(stack -> WynnGlint.withPreviewGlint(cell.type, () ->
-                    SkinModelOverride.withOverridesSuppressed(() -> context.drawItem(stack, iconX, iconY))));
+                    SkinModelOverride.withOverridesSuppressed(() -> {
+                        MatrixStack itemMatrices = context.getMatrices();
+                        float scale = GLINT_ICON_SIZE / 16.0f;
+                        itemMatrices.push();
+                        itemMatrices.translate(iconX, iconY, 0.0f);
+                        itemMatrices.scale(scale, scale, 1.0f);
+                        context.drawItem(stack, 0, 0);
+                        itemMatrices.pop();
+                    })));
 
-            int maxLabelWidth = cell.width - 6;
+            int maxLabelWidth = cell.width - 8;
             String label = textRenderer.trimToWidth(cell.type.getDisplayName(), maxLabelWidth);
             int textWidth = textRenderer.getWidth(label);
             int textX = cell.x + (cell.width - textWidth) / 2;
@@ -474,8 +489,8 @@ public class SkinChangerScreen extends Screen {
             int trackH = picker.viewHeight;
             context.fill(trackX, trackY, trackX + GLINT_SCROLLBAR_WIDTH, trackY + trackH, GLINT_SCROLLBAR_TRACK);
 
-            int thumbH = Math.max(18, Math.round(trackH * picker.viewHeight / (float) picker.contentHeight));
-            int thumbY = trackY + Math.round((trackH - thumbH) * (picker.scrollOffset / (float) picker.maxScroll));
+            int thumbH = picker.getThumbHeight();
+            int thumbY = picker.getThumbY(thumbH);
             context.fill(trackX, thumbY, trackX + GLINT_SCROLLBAR_WIDTH, thumbY + thumbH, GLINT_SCROLLBAR_THUMB);
         }
 
@@ -519,6 +534,8 @@ public class SkinChangerScreen extends Screen {
         private final int maxScroll;
         private final int scrollbarX;
         private int scrollOffset;
+        private boolean draggingScrollbar;
+        private int dragOffsetY;
 
         private GlintPicker(SkinEntry entry, Optional<ItemStack> previewStack, List<GlintCell> cells,
                             int x, int y, int width, int height, int contentLeft, int contentRight,
@@ -617,6 +634,43 @@ public class SkinChangerScreen extends Screen {
             return null;
         }
 
+        private boolean startScrollbarDrag(double mouseX, double mouseY) {
+            if (maxScroll <= 0) {
+                return false;
+            }
+            int thumbHeight = getThumbHeight();
+            int thumbY = getThumbY(thumbHeight);
+            if (mouseX >= scrollbarX && mouseX <= scrollbarX + GLINT_SCROLLBAR_WIDTH
+                    && mouseY >= thumbY && mouseY <= thumbY + thumbHeight) {
+                draggingScrollbar = true;
+                dragOffsetY = (int) Math.round(mouseY) - thumbY;
+                return true;
+            }
+            return false;
+        }
+
+        private void stopScrollbarDrag() {
+            draggingScrollbar = false;
+        }
+
+        private boolean dragScrollbar(double mouseY) {
+            if (!draggingScrollbar || maxScroll <= 0) {
+                return false;
+            }
+            int trackY = contentTop;
+            int trackHeight = viewHeight;
+            int thumbHeight = getThumbHeight();
+            int maxThumbY = trackY + trackHeight - thumbHeight;
+            int nextThumbY = clamp((int) Math.round(mouseY) - dragOffsetY, trackY, maxThumbY);
+            if (maxThumbY <= trackY) {
+                scrollOffset = 0;
+                return true;
+            }
+            int nextScroll = Math.round(((nextThumbY - trackY) / (float) (maxThumbY - trackY)) * maxScroll);
+            scrollOffset = clamp(nextScroll, 0, maxScroll);
+            return true;
+        }
+
         private boolean scrollBy(int delta) {
             if (maxScroll <= 0) {
                 return false;
@@ -627,6 +681,24 @@ public class SkinChangerScreen extends Screen {
             }
             scrollOffset = next;
             return true;
+        }
+
+        private int getThumbHeight() {
+            if (maxScroll <= 0) {
+                return viewHeight;
+            }
+            return Math.max(18, Math.round(viewHeight * viewHeight / (float) contentHeight));
+        }
+
+        private int getThumbY(int thumbHeight) {
+            if (maxScroll <= 0) {
+                return contentTop;
+            }
+            int trackHeight = viewHeight - thumbHeight;
+            if (trackHeight <= 0) {
+                return contentTop;
+            }
+            return contentTop + Math.round(trackHeight * (scrollOffset / (float) maxScroll));
         }
     }
 

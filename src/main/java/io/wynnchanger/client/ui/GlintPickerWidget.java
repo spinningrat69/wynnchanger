@@ -213,10 +213,12 @@ public final class GlintPickerWidget {
             context.drawTextWithShadow(textRenderer, label, textX, textY, textColor);
 
             if (selected) {
-                Text check = Text.literal("v");
-                int checkX = cell.x + cell.width - 10;
-                int checkY = cellY + 4;
-                context.drawTextWithShadow(textRenderer, check, checkX, checkY, 0xFFFFFF);
+                int checkX = cell.x + cell.width - 16;
+                int checkY = cellY + 6;
+                int checkColor = 0xFFFFFFFF;
+                context.fill(checkX, checkY + 5, checkX + 3, checkY + 7, checkColor);
+                context.fill(checkX + 2, checkY + 3, checkX + 6, checkY + 5, checkColor);
+                context.fill(checkX + 5, checkY + 1, checkX + 9, checkY + 3, checkColor);
             }
         }
         context.disableScissor();

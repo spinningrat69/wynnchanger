@@ -6,6 +6,7 @@ import io.wynnchanger.client.SkinType;
 import io.wynnchanger.client.WynnchangerClient;
 import io.wynnchanger.client.model.SkinModelOverride;
 import io.wynnchanger.client.model.WynnItemClassifier;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -15,10 +16,15 @@ import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.client.gui.widget.PressableWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
+import org.lwjgl.opengl.GL11;
 
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +52,9 @@ public class SkinChangerScreen extends Screen {
     private final Map<Identifier, Optional<ItemStack>> previewCache = new HashMap<>();
     private TextFieldWidget searchField;
     private String searchText = "";
+    private boolean previewDragging;
+    private float previewExtraYaw;
+    private static final float PREVIEW_DRAG_SENSITIVITY = 1.8f;
 
     public SkinChangerScreen() {
         super(Text.literal("Wynnchanger"));
@@ -218,13 +227,100 @@ public class SkinChangerScreen extends Screen {
         }
 
         int previewHeight = layout.previewBottom - layout.previewTop;
-        if (previewHeight < 32) {
+        int previewWidth = layout.previewRight - layout.previewLeft;
+        if (previewHeight < 32 || previewWidth < 32) {
             return;
         }
 
-        int previewWidth = layout.previewRight - layout.previewLeft;
-        int size = Math.max(28, Math.min(previewWidth, previewHeight) / 2);
-        InventoryScreen.drawEntity(context, layout.previewLeft, layout.previewTop, layout.previewRight, layout.previewBottom, size, 0.0F, mouseX, mouseY, client.player);
+        int size = Math.min(90, Math.max(28, Math.round(Math.min(previewWidth, previewHeight) * 0.45f)));
+        float centerX = (layout.previewLeft + layout.previewRight) / 2.0f;
+        float centerY = (layout.previewTop + layout.previewBottom) / 2.0f;
+
+        if (!previewDragging) {
+            previewExtraYaw = MathHelper.lerp(0.15f, previewExtraYaw, 0.0f);
+        }
+
+        float effectiveMouseX = (float) mouseX;
+        float effectiveMouseY = (float) mouseY;
+        effectiveMouseX = MathHelper.clamp(effectiveMouseX, 0.0f, (float) width);
+        effectiveMouseY = MathHelper.clamp(effectiveMouseY, 0.0f, (float) height);
+        RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT);
+        drawPreviewEntity(context, centerX, centerY, size, effectiveMouseX, effectiveMouseY, previewExtraYaw, client.player);
+    }
+
+    private static void drawPreviewEntity(DrawContext context, float centerX, float centerY, int size, float mouseX, float mouseY, float extraYaw, LivingEntity entity) {
+        float yawOffset = (float) Math.atan((centerX - mouseX) / 40.0f);
+        float pitchOffset = (float) Math.atan((centerY - mouseY) / 40.0f);
+
+        Quaternionf rotation = new Quaternionf().rotateZ((float) Math.PI);
+        Quaternionf pitchRotation = new Quaternionf().rotateX(pitchOffset * 20.0f * ((float) Math.PI / 180.0f));
+        rotation.mul(pitchRotation);
+
+        float prevBodyYaw = entity.bodyYaw;
+        float prevYaw = entity.getYaw();
+        float prevPitch = entity.getPitch();
+        float prevHeadYaw = entity.headYaw;
+        float prevPrevHeadYaw = entity.prevHeadYaw;
+
+        entity.bodyYaw = 180.0f + yawOffset * 20.0f + extraYaw;
+        entity.setYaw(180.0f + yawOffset * 40.0f + extraYaw);
+        entity.setPitch(-pitchOffset * 20.0f);
+        entity.headYaw = entity.getYaw();
+        entity.prevHeadYaw = entity.getYaw();
+
+        float scale = entity.getScale();
+        if (scale <= 0.0f) {
+            scale = 1.0f;
+        }
+        float renderScale = size / scale;
+        float yOffset = 0.0625f * scale;
+        Vector3f translation = new Vector3f(0.0f, entity.getHeight() / 2.0f + yOffset, 0.0f);
+
+        try {
+            InventoryScreen.drawEntity(context, centerX, centerY, renderScale, translation, rotation, pitchRotation, entity);
+        } finally {
+            entity.bodyYaw = prevBodyYaw;
+            entity.setYaw(prevYaw);
+            entity.setPitch(prevPitch);
+            entity.headYaw = prevHeadYaw;
+            entity.prevHeadYaw = prevPrevHeadYaw;
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0 && isInsidePreview(mouseX, mouseY)) {
+            previewDragging = true;
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (previewDragging && button == 0) {
+            previewDragging = false;
+            previewExtraYaw = MathHelper.wrapDegrees(previewExtraYaw);
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (previewDragging && button == 0) {
+            previewExtraYaw -= (float) deltaX * PREVIEW_DRAG_SENSITIVITY;
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    private boolean isInsidePreview(double mouseX, double mouseY) {
+        if (layout == null) {
+            return false;
+        }
+        return mouseX >= layout.previewLeft && mouseX <= layout.previewRight
+                && mouseY >= layout.previewTop && mouseY <= layout.previewBottom;
     }
 
     private static int scaleWidth(int width, float ratio, int min, int max) {
@@ -298,8 +394,7 @@ public class SkinChangerScreen extends Screen {
             int navGap = scaleHeight(height, 0.01f, 4, 8);
             int navY = gridStartY + ROWS * (BUTTON_HEIGHT + gridPadding) + navGap;
 
-            int typeTopOffset = scaleHeight(height, 0.06f, 36, 56);
-            int typeStartY = panelTop + typeTopOffset;
+            int typeStartY = searchY;
             int typeStartX = sidebarLeft;
             int typePadding = scaleHeight(height, 0.01f, 6, 10);
             int typeListHeight = typeCount * (TYPE_BUTTON_HEIGHT + typePadding) - typePadding;
@@ -308,8 +403,9 @@ public class SkinChangerScreen extends Screen {
             int clearY = typeStartY + typeListHeight + clearGap;
 
             int previewTopGap = scaleHeight(height, 0.03f, 18, 30);
+            int previewDrop = scaleHeight(height, 0.05f, 24, 40);
             int previewBottomPadding = scaleHeight(height, 0.008f, 2, 6);
-            int previewTop = clearY + CLEAR_BUTTON_HEIGHT + previewTopGap;
+            int previewTop = clearY + CLEAR_BUTTON_HEIGHT + previewTopGap + previewDrop;
             int previewBottom = panelBottom - previewBottomPadding;
             int previewLeft = sidebarLeft;
             int previewRight = sidebarRight;
@@ -356,14 +452,19 @@ public class SkinChangerScreen extends Screen {
 
         @Override
         public void onPress() {
-            WynnchangerClient.getSwapState().setSelection(entry.type(), entry.modelId());
+            SkinSwapState swapState = WynnchangerClient.getSwapState();
+            if (isSelected(swapState)) {
+                swapState.clearSelection(entry.type());
+            } else {
+                swapState.setSelection(entry.type(), entry.modelId());
+            }
             rebuildWidgets();
         }
 
         @Override
         protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
             SkinSwapState state = WynnchangerClient.getSwapState();
-            boolean selected = state.getSelection(entry.type()).filter(entry.modelId()::equals).isPresent();
+            boolean selected = isSelected(state);
             int background = selected ? 0xFF2E6D3A : (isHovered() ? 0xFF2D2D2D : 0xFF1F1F1F);
             int border = selected ? 0xFF6BD88A : 0xFF000000;
 
@@ -394,6 +495,20 @@ public class SkinChangerScreen extends Screen {
             int textX = iconX + iconSize + 10;
             int textY = y + (height - textRenderer.fontHeight) / 2;
             context.drawTextWithShadow(textRenderer, label, textX, textY, 0xFFFFFF);
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button == 1 && isMouseOver(mouseX, mouseY)) {
+                WynnchangerClient.getSwapState().clearSelection(entry.type());
+                rebuildWidgets();
+                return true;
+            }
+            return super.mouseClicked(mouseX, mouseY, button);
+        }
+
+        private boolean isSelected(SkinSwapState state) {
+            return state.getSelection(entry.type()).filter(entry.modelId()::equals).isPresent();
         }
 
         @Override

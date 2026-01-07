@@ -3,6 +3,7 @@
   "package": "io.wynnchanger.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "ArmorFeatureRendererMixin",
     "ItemModelManagerMixin"
   ],
   "injectors": {

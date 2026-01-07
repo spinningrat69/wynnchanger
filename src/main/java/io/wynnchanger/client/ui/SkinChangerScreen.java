@@ -50,11 +50,11 @@ public class SkinChangerScreen extends Screen {
     private static final int CLEAR_BUTTON_HEIGHT = 20;
     private static final int GLINT_PANEL_PADDING = 12;
     private static final int GLINT_PANEL_HEADER_HEIGHT = 22;
-    private static final int GLINT_ROW_HEIGHT = 62;
+    private static final int GLINT_ROW_HEIGHT = 76;
     private static final int GLINT_COLUMN_GAP = 10;
     private static final int GLINT_ROW_GAP = 6;
-    private static final int GLINT_ICON_SIZE = 32;
-    private static final int GLINT_LABEL_GAP = 6;
+    private static final int GLINT_ICON_SIZE = 40;
+    private static final int GLINT_LABEL_GAP = 8;
     private static final int GLINT_PANEL_BORDER = 1;
     private static final int GLINT_PANEL_HEADER_COLOR = 0xFF181818;
     private static final int GLINT_PANEL_BODY_COLOR = 0xFF181818;
@@ -453,8 +453,9 @@ public class SkinChangerScreen extends Screen {
             context.fill(cell.x, cellY, cell.x + 1, cellY + cell.height, border);
             context.fill(cell.x + cell.width - 1, cellY, cell.x + cell.width, cellY + cell.height, border);
 
+            int contentHeight = GLINT_ICON_SIZE + GLINT_LABEL_GAP + textRenderer.fontHeight;
             int iconX = cell.x + (cell.width - GLINT_ICON_SIZE) / 2;
-            int iconY = cellY + 6;
+            int iconY = cellY + Math.max(6, (cell.height - contentHeight) / 2);
             picker.previewStack.ifPresent(stack -> WynnGlint.withPreviewGlint(cell.type, () ->
                     SkinModelOverride.withOverridesSuppressed(() -> {
                         MatrixStack itemMatrices = context.getMatrices();
@@ -568,7 +569,7 @@ public class SkinChangerScreen extends Screen {
             int columns = screenWidth < 520 ? 2 : 4;
             columns = Math.min(columns, options.size());
             int rawColumnWidth = (screenWidth - 40 - GLINT_PANEL_PADDING * 2 - GLINT_COLUMN_GAP * (columns - 1)) / columns;
-            int columnWidth = Math.max(84, rawColumnWidth);
+            int columnWidth = Math.max(110, rawColumnWidth);
             int rows = (options.size() + columns - 1) / columns;
             int visibleRows = Math.min(rows, 4);
 
@@ -578,7 +579,7 @@ public class SkinChangerScreen extends Screen {
 
             int maxWidth = Math.max(0, screenWidth - 20);
             if (panelWidth > maxWidth) {
-                columnWidth = Math.max(90, (maxWidth - GLINT_PANEL_PADDING * 2 - GLINT_COLUMN_GAP * (columns - 1)) / columns);
+                columnWidth = Math.max(96, (maxWidth - GLINT_PANEL_PADDING * 2 - GLINT_COLUMN_GAP * (columns - 1)) / columns);
                 panelWidth = GLINT_PANEL_PADDING * 2 + columns * columnWidth + (columns - 1) * GLINT_COLUMN_GAP;
             }
 
@@ -597,7 +598,7 @@ public class SkinChangerScreen extends Screen {
             int gridX = x + GLINT_PANEL_PADDING;
             int gridY = y + GLINT_PANEL_PADDING + GLINT_PANEL_HEADER_HEIGHT;
             int gridWidth = panelWidth - GLINT_PANEL_PADDING * 2;
-            columnWidth = Math.max(84, (gridWidth - (columns - 1) * GLINT_COLUMN_GAP) / columns);
+            columnWidth = Math.max(96, (gridWidth - (columns - 1) * GLINT_COLUMN_GAP) / columns);
             int viewHeight = visibleRows * GLINT_ROW_HEIGHT + Math.max(0, visibleRows - 1) * GLINT_ROW_GAP;
             int contentHeight = rows * GLINT_ROW_HEIGHT + Math.max(0, rows - 1) * GLINT_ROW_GAP;
             int maxScroll = Math.max(0, contentHeight - viewHeight);

@@ -56,10 +56,13 @@ public class SkinChangerScreen extends Screen {
     private static final int GLINT_ICON_SIZE = 18;
     private static final int GLINT_PANEL_BORDER = 1;
     private static final int GLINT_PANEL_SHADOW = 3;
-    private static final int GLINT_PANEL_HEADER_COLOR = 0xFF262626;
-    private static final int GLINT_PANEL_BODY_COLOR = 0xFF1A1A1A;
+    private static final int GLINT_PANEL_HEADER_COLOR = 0xFF252525;
+    private static final int GLINT_PANEL_BODY_COLOR = 0xFF181818;
     private static final int GLINT_PANEL_BORDER_COLOR = 0xFF000000;
     private static final int GLINT_PANEL_SHADOW_COLOR = 0x66000000;
+    private static final int GLINT_SCROLLBAR_WIDTH = 4;
+    private static final int GLINT_SCROLLBAR_TRACK = 0xFF101010;
+    private static final int GLINT_SCROLLBAR_THUMB = 0xFF3B3B3B;
 
     private SkinType detectedType = SkinType.UNKNOWN;
     private SkinType selectedType;
@@ -364,6 +367,17 @@ public class SkinChangerScreen extends Screen {
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (glintPicker != null) {
+            if (glintPicker.scrollBy(-(int) Math.round(verticalAmount * 14.0))) {
+                return true;
+            }
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
     private boolean isInsidePreview(double mouseX, double mouseY) {
         if (layout == null) {
             return false;
@@ -413,29 +427,58 @@ public class SkinChangerScreen extends Screen {
                 picker.y + 6,
                 0xAAAAAA);
 
+        int gridLeft = picker.contentLeft;
+        int gridRight = picker.contentRight;
+        int gridTop = picker.contentTop;
+        int gridBottom = picker.contentBottom;
+        context.enableScissor(gridLeft, gridTop, gridRight, gridBottom);
+
         SkinSwapState state = WynnchangerClient.getSwapState();
         GlintType selectedGlint = state.getGlint(picker.entry.type()).orElse(GlintType.NONE);
         for (GlintCell cell : picker.cells) {
-            boolean hovered = cell.contains(mouseX, mouseY);
+            int cellY = cell.y - picker.scrollOffset;
+            if (cellY + cell.height < gridTop || cellY > gridBottom) {
+                continue;
+            }
+            boolean hovered = cell.contains(mouseX, mouseY, picker.scrollOffset);
             boolean selected = cell.type == selectedGlint;
 
-            int background = hovered ? 0xFF2C2C2C : 0xFF212121;
-            int border = selected ? 0xFF6BD88A : 0xFF111111;
-            context.fill(cell.x, cell.y, cell.x + cell.width, cell.y + cell.height, background);
-            context.fill(cell.x, cell.y, cell.x + cell.width, cell.y + 1, border);
-            context.fill(cell.x, cell.y + cell.height - 1, cell.x + cell.width, cell.y + cell.height, border);
-            context.fill(cell.x, cell.y, cell.x + 1, cell.y + cell.height, border);
-            context.fill(cell.x + cell.width - 1, cell.y, cell.x + cell.width, cell.y + cell.height, border);
+            int background = selected ? 0xFF2B2B2B : (hovered ? 0xFF262626 : 0xFF1F1F1F);
+            int border = 0xFF0C0C0C;
+            context.fill(cell.x, cellY, cell.x + cell.width, cellY + cell.height, background);
+            context.fill(cell.x, cellY, cell.x + cell.width, cellY + 1, border);
+            context.fill(cell.x, cellY + cell.height - 1, cell.x + cell.width, cellY + cell.height, border);
+            context.fill(cell.x, cellY, cell.x + 1, cellY + cell.height, border);
+            context.fill(cell.x + cell.width - 1, cellY, cell.x + cell.width, cellY + cell.height, border);
 
             int iconX = cell.x + 4;
-            int iconY = cell.y + (cell.height - GLINT_ICON_SIZE) / 2;
+            int iconY = cellY + (cell.height - GLINT_ICON_SIZE) / 2;
             picker.previewStack.ifPresent(stack -> WynnGlint.withPreviewGlint(cell.type, () ->
                     SkinModelOverride.withOverridesSuppressed(() -> context.drawItem(stack, iconX, iconY))));
 
             int textX = cell.x + GLINT_ICON_SIZE + 10;
-            int textY = cell.y + (cell.height - textRenderer.fontHeight) / 2;
-            int textColor = selected ? 0xC7F4D2 : 0xFFFFFF;
+            int textY = cellY + (cell.height - textRenderer.fontHeight) / 2;
+            int textColor = hovered ? 0xFFFFFF : 0xE6E6E6;
             context.drawTextWithShadow(textRenderer, cell.type.getDisplayName(), textX, textY, textColor);
+
+            if (selected) {
+                Text check = Text.literal("✓").formatted(Formatting.GREEN);
+                int checkX = cell.x + cell.width - 10;
+                int checkY = cellY + (cell.height - textRenderer.fontHeight) / 2;
+                context.drawTextWithShadow(textRenderer, check, checkX, checkY, 0x7FE7A1);
+            }
+        }
+        context.disableScissor();
+
+        if (picker.maxScroll > 0) {
+            int trackX = picker.scrollbarX;
+            int trackY = picker.contentTop;
+            int trackH = picker.viewHeight;
+            context.fill(trackX, trackY, trackX + GLINT_SCROLLBAR_WIDTH, trackY + trackH, GLINT_SCROLLBAR_TRACK);
+
+            int thumbH = Math.max(18, Math.round(trackH * picker.viewHeight / (float) picker.contentHeight));
+            int thumbY = trackY + Math.round((trackH - thumbH) * (picker.scrollOffset / (float) picker.maxScroll));
+            context.fill(trackX, thumbY, trackX + GLINT_SCROLLBAR_WIDTH, thumbY + thumbH, GLINT_SCROLLBAR_THUMB);
         }
 
         if (!GlintSupport.isSupported()) {
@@ -469,9 +512,20 @@ public class SkinChangerScreen extends Screen {
         private final int y;
         private final int width;
         private final int height;
+        private final int contentLeft;
+        private final int contentRight;
+        private final int contentTop;
+        private final int contentBottom;
+        private final int contentHeight;
+        private final int viewHeight;
+        private final int maxScroll;
+        private final int scrollbarX;
+        private int scrollOffset;
 
         private GlintPicker(SkinEntry entry, Optional<ItemStack> previewStack, List<GlintCell> cells,
-                            int x, int y, int width, int height) {
+                            int x, int y, int width, int height, int contentLeft, int contentRight,
+                            int contentTop, int contentBottom, int contentHeight, int viewHeight,
+                            int maxScroll, int scrollbarX) {
             this.entry = entry;
             this.previewStack = previewStack;
             this.cells = cells;
@@ -479,6 +533,14 @@ public class SkinChangerScreen extends Screen {
             this.y = y;
             this.width = width;
             this.height = height;
+            this.contentLeft = contentLeft;
+            this.contentRight = contentRight;
+            this.contentTop = contentTop;
+            this.contentBottom = contentBottom;
+            this.contentHeight = contentHeight;
+            this.viewHeight = viewHeight;
+            this.maxScroll = maxScroll;
+            this.scrollbarX = scrollbarX;
         }
 
         private static GlintPicker create(SkinEntry entry, Optional<ItemStack> previewStack,
@@ -488,22 +550,16 @@ public class SkinChangerScreen extends Screen {
                 options.add(GlintType.NONE);
             }
 
-            int columns;
-            if (screenWidth < 360) {
-                columns = 1;
-            } else if (screenWidth < 560) {
-                columns = 2;
-            } else {
-                columns = 3;
-            }
+            int columns = screenWidth < 560 ? 2 : 4;
             columns = Math.min(columns, options.size());
             int rawColumnWidth = (screenWidth - 40 - GLINT_PANEL_PADDING * 2 - GLINT_COLUMN_GAP * (columns - 1)) / columns;
-            int columnWidth = Math.max(110, rawColumnWidth);
+            int columnWidth = Math.max(96, rawColumnWidth);
             int rows = (options.size() + columns - 1) / columns;
+            int visibleRows = Math.min(rows, 4);
 
             int panelWidth = GLINT_PANEL_PADDING * 2 + columns * columnWidth + (columns - 1) * GLINT_COLUMN_GAP;
             int panelHeight = GLINT_PANEL_PADDING * 2 + GLINT_PANEL_HEADER_HEIGHT
-                    + rows * GLINT_ROW_HEIGHT + Math.max(0, rows - 1) * GLINT_ROW_GAP;
+                    + visibleRows * GLINT_ROW_HEIGHT + Math.max(0, visibleRows - 1) * GLINT_ROW_GAP;
 
             int maxWidth = Math.max(0, screenWidth - 20);
             if (panelWidth > maxWidth) {
@@ -511,11 +567,32 @@ public class SkinChangerScreen extends Screen {
                 panelWidth = GLINT_PANEL_PADDING * 2 + columns * columnWidth + (columns - 1) * GLINT_COLUMN_GAP;
             }
 
+            int maxHeight = Math.max(0, screenHeight - 20);
+            if (panelHeight > maxHeight) {
+                int available = maxHeight - GLINT_PANEL_PADDING * 2 - GLINT_PANEL_HEADER_HEIGHT + GLINT_ROW_GAP;
+                visibleRows = Math.max(2, available / (GLINT_ROW_HEIGHT + GLINT_ROW_GAP));
+                visibleRows = Math.min(rows, visibleRows);
+                panelHeight = GLINT_PANEL_PADDING * 2 + GLINT_PANEL_HEADER_HEIGHT
+                        + visibleRows * GLINT_ROW_HEIGHT + Math.max(0, visibleRows - 1) * GLINT_ROW_GAP;
+            }
+
             int x = clamp((screenWidth - panelWidth) / 2, 10, Math.max(10, screenWidth - panelWidth - 10));
             int y = clamp((screenHeight - panelHeight) / 2, 10, Math.max(10, screenHeight - panelHeight - 10));
 
             int gridX = x + GLINT_PANEL_PADDING;
             int gridY = y + GLINT_PANEL_PADDING + GLINT_PANEL_HEADER_HEIGHT;
+            int gridWidth = panelWidth - GLINT_PANEL_PADDING * 2;
+            columnWidth = (gridWidth - (columns - 1) * GLINT_COLUMN_GAP) / columns;
+            int viewHeight = visibleRows * GLINT_ROW_HEIGHT + Math.max(0, visibleRows - 1) * GLINT_ROW_GAP;
+            int contentHeight = rows * GLINT_ROW_HEIGHT + Math.max(0, rows - 1) * GLINT_ROW_GAP;
+            int maxScroll = Math.max(0, contentHeight - viewHeight);
+
+            int contentLeft = gridX;
+            int contentRight = x + panelWidth - GLINT_PANEL_PADDING;
+            int contentTop = gridY;
+            int contentBottom = gridY + viewHeight;
+            int scrollbarX = x + panelWidth - GLINT_PANEL_PADDING + (GLINT_PANEL_PADDING - GLINT_SCROLLBAR_WIDTH) / 2;
+
             List<GlintCell> cells = new ArrayList<>(options.size());
             for (int i = 0; i < options.size(); i++) {
                 int col = i % columns;
@@ -525,7 +602,8 @@ public class SkinChangerScreen extends Screen {
                 cells.add(new GlintCell(options.get(i), cellX, cellY, columnWidth, GLINT_ROW_HEIGHT));
             }
 
-            return new GlintPicker(entry, previewStack, List.copyOf(cells), x, y, panelWidth, panelHeight);
+            return new GlintPicker(entry, previewStack, List.copyOf(cells), x, y, panelWidth, panelHeight,
+                    contentLeft, contentRight, contentTop, contentBottom, contentHeight, viewHeight, maxScroll, scrollbarX);
         }
 
         private boolean contains(double mouseX, double mouseY) {
@@ -534,17 +612,30 @@ public class SkinChangerScreen extends Screen {
 
         private GlintType getOptionAt(double mouseX, double mouseY) {
             for (GlintCell cell : cells) {
-                if (cell.contains(mouseX, mouseY)) {
+                if (cell.contains(mouseX, mouseY, scrollOffset)) {
                     return cell.type;
                 }
             }
             return null;
         }
+
+        private boolean scrollBy(int delta) {
+            if (maxScroll <= 0) {
+                return false;
+            }
+            int next = clamp(scrollOffset + delta, 0, maxScroll);
+            if (next == scrollOffset) {
+                return false;
+            }
+            scrollOffset = next;
+            return true;
+        }
     }
 
     private record GlintCell(GlintType type, int x, int y, int width, int height) {
-        private boolean contains(double mouseX, double mouseY) {
-            return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
+        private boolean contains(double mouseX, double mouseY, int scrollOffset) {
+            int adjustedY = y - scrollOffset;
+            return mouseX >= x && mouseX <= x + width && mouseY >= adjustedY && mouseY <= adjustedY + height;
         }
     }
 

@@ -6,7 +6,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.feature.ArmorFeatureRenderer;
 import net.minecraft.client.render.entity.model.BipedEntityModel;
-import net.minecraft.client.render.entity.state.LivingEntityRenderState;
+import net.minecraft.client.render.entity.state.BipedEntityRenderState;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.EquipmentSlot;
@@ -27,27 +27,27 @@ public abstract class ArmorFeatureRendererMixin {
                                         EquipmentSlot slot, int light, BipedEntityModel<?> armorModel);
 
     @Inject(
-            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/render/entity/state/LivingEntityRenderState;FF)V",
+            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/render/entity/state/BipedEntityRenderState;FF)V",
             at = @At("HEAD")
     )
     private void wynnchanger$trackHeadVisibility(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light,
-                                                 LivingEntityRenderState state, float limbAngle, float limbDistance,
+                                                 BipedEntityRenderState state, float limbAngle, float limbDistance,
                                                  CallbackInfo ci) {
         HIDE_HEAD_SLOT.set(shouldHideHead(state));
     }
 
     @Inject(
-            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/render/entity/state/LivingEntityRenderState;FF)V",
+            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/render/entity/state/BipedEntityRenderState;FF)V",
             at = @At("TAIL")
     )
     private void wynnchanger$clearHeadVisibility(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light,
-                                                 LivingEntityRenderState state, float limbAngle, float limbDistance,
+                                                 BipedEntityRenderState state, float limbAngle, float limbDistance,
                                                  CallbackInfo ci) {
         HIDE_HEAD_SLOT.set(false);
     }
 
     @Redirect(
-            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/render/entity/state/LivingEntityRenderState;FF)V",
+            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/render/entity/state/BipedEntityRenderState;FF)V",
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/client/render/entity/feature/ArmorFeatureRenderer;renderArmor(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;Lnet/minecraft/item/ItemStack;Lnet/minecraft/entity/EquipmentSlot;ILnet/minecraft/client/render/entity/model/BipedEntityModel;)V",
@@ -63,7 +63,7 @@ public abstract class ArmorFeatureRendererMixin {
         renderArmor(matrices, vertexConsumers, stack, slot, light, armorModel);
     }
 
-    private static boolean shouldHideHead(LivingEntityRenderState state) {
+    private static boolean shouldHideHead(BipedEntityRenderState state) {
         if (!(state instanceof PlayerEntityRenderState playerState)) {
             return false;
         }

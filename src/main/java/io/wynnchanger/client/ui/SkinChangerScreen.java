@@ -56,11 +56,9 @@ public class SkinChangerScreen extends Screen {
     private static final int GLINT_ICON_SIZE = 24;
     private static final int GLINT_LABEL_GAP = 4;
     private static final int GLINT_PANEL_BORDER = 1;
-    private static final int GLINT_PANEL_SHADOW = 3;
     private static final int GLINT_PANEL_HEADER_COLOR = 0xFF181818;
     private static final int GLINT_PANEL_BODY_COLOR = 0xFF181818;
     private static final int GLINT_PANEL_BORDER_COLOR = 0xFF000000;
-    private static final int GLINT_PANEL_SHADOW_COLOR = 0x66000000;
     private static final int GLINT_SCROLLBAR_WIDTH = 4;
     private static final int GLINT_SCROLLBAR_TRACK = 0xFF101010;
     private static final int GLINT_SCROLLBAR_THUMB = 0xFF3B3B3B;
@@ -401,10 +399,6 @@ public class SkinChangerScreen extends Screen {
         matrices.translate(0.0f, 0.0f, 400.0f);
 
         context.fill(0, 0, width, height, 0xCC000000);
-        context.fill(picker.x - GLINT_PANEL_SHADOW, picker.y - GLINT_PANEL_SHADOW,
-                picker.x + picker.width + GLINT_PANEL_SHADOW,
-                picker.y + picker.height + GLINT_PANEL_SHADOW,
-                GLINT_PANEL_SHADOW_COLOR);
         context.fill(picker.x, picker.y, picker.x + picker.width, picker.y + picker.height, GLINT_PANEL_BODY_COLOR);
         context.fill(picker.x, picker.y, picker.x + picker.width, picker.y + GLINT_PANEL_HEADER_HEIGHT,
                 GLINT_PANEL_HEADER_COLOR);

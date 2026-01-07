@@ -4,6 +4,9 @@ import io.wynnchanger.client.SkinEntry;
 import io.wynnchanger.client.SkinSwapState;
 import io.wynnchanger.client.SkinType;
 import io.wynnchanger.client.WynnchangerClient;
+import io.wynnchanger.client.GlintSupport;
+import io.wynnchanger.client.GlintType;
+import io.wynnchanger.client.WynnGlint;
 import io.wynnchanger.client.model.SkinModelOverride;
 import io.wynnchanger.client.model.WynnItemClassifier;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -24,8 +27,10 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -43,6 +48,12 @@ public class SkinChangerScreen extends Screen {
     private static final int TYPE_BUTTON_HEIGHT = 20;
     private static final int SEARCH_HEIGHT = 20;
     private static final int CLEAR_BUTTON_HEIGHT = 20;
+    private static final int GLINT_PANEL_PADDING = 8;
+    private static final int GLINT_PANEL_HEADER_HEIGHT = 18;
+    private static final int GLINT_ROW_HEIGHT = 22;
+    private static final int GLINT_COLUMN_GAP = 8;
+    private static final int GLINT_ROW_GAP = 4;
+    private static final int GLINT_ICON_SIZE = 16;
 
     private SkinType detectedType = SkinType.UNKNOWN;
     private SkinType selectedType;
@@ -55,6 +66,7 @@ public class SkinChangerScreen extends Screen {
     private boolean previewDragging;
     private float previewExtraYaw;
     private static final float PREVIEW_DRAG_SENSITIVITY = 1.8f;
+    private GlintPicker glintPicker;
 
     public SkinChangerScreen() {
         super(Text.literal("Wynnchanger"));
@@ -68,6 +80,7 @@ public class SkinChangerScreen extends Screen {
     private void rebuildWidgets() {
         boolean keepSearchFocus = searchField != null && searchField.isFocused();
         clearChildren();
+        glintPicker = null;
         refreshDetectedType();
         SkinType activeType = getActiveType();
         entries = filterEntries(WynnchangerClient.getSkinRegistry().getSkins(activeType));
@@ -212,6 +225,7 @@ public class SkinChangerScreen extends Screen {
         super.render(context, mouseX, mouseY, delta);
 
         renderPreview(context, mouseX, mouseY);
+        renderGlintPicker(context, mouseX, mouseY);
     }
 
     @Override
@@ -289,6 +303,20 @@ public class SkinChangerScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (glintPicker != null) {
+            if (button == 0) {
+                GlintType glint = glintPicker.getOptionAt(mouseX, mouseY);
+                if (glint != null) {
+                    WynnchangerClient.getSwapState().setGlint(glintPicker.entry.type(), glint);
+                    glintPicker = null;
+                    return true;
+                }
+            }
+            if (!glintPicker.contains(mouseX, mouseY)) {
+                glintPicker = null;
+            }
+            return true;
+        }
         if (button == 0 && isInsidePreview(mouseX, mouseY)) {
             previewDragging = true;
             return true;
@@ -298,6 +326,9 @@ public class SkinChangerScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (glintPicker != null) {
+            return true;
+        }
         if (previewDragging && button == 0) {
             previewDragging = false;
             previewExtraYaw = MathHelper.wrapDegrees(previewExtraYaw);
@@ -308,11 +339,23 @@ public class SkinChangerScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (glintPicker != null) {
+            return true;
+        }
         if (previewDragging && button == 0) {
             previewExtraYaw -= (float) deltaX * PREVIEW_DRAG_SENSITIVITY;
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (glintPicker != null && keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            glintPicker = null;
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private boolean isInsidePreview(double mouseX, double mouseY) {
@@ -321,6 +364,58 @@ public class SkinChangerScreen extends Screen {
         }
         return mouseX >= layout.previewLeft && mouseX <= layout.previewRight
                 && mouseY >= layout.previewTop && mouseY <= layout.previewBottom;
+    }
+
+    private void openGlintPicker(SkinEntry entry, Optional<ItemStack> previewStack, int mouseX, int mouseY) {
+        glintPicker = GlintPicker.create(entry, previewStack, width, height, mouseX, mouseY);
+    }
+
+    private void renderGlintPicker(DrawContext context, int mouseX, int mouseY) {
+        if (glintPicker == null) {
+            return;
+        }
+        GlintPicker picker = glintPicker;
+        context.fill(0, 0, width, height, 0x88000000);
+        context.fill(picker.x, picker.y, picker.x + picker.width, picker.y + picker.height, 0xFF1A1A1A);
+
+        Text title = Text.literal("Glint: " + picker.entry.type().getDisplayName());
+        context.drawTextWithShadow(textRenderer, title,
+                picker.x + GLINT_PANEL_PADDING,
+                picker.y + 4,
+                0xFFFFFF);
+
+        if (!GlintSupport.isSupported()) {
+            context.drawTextWithShadow(textRenderer,
+                    Text.literal("Glints not detected").formatted(Formatting.RED),
+                    picker.x + GLINT_PANEL_PADDING,
+                    picker.y + 4 + textRenderer.fontHeight + 2,
+                    0xFF5555);
+        }
+
+        SkinSwapState state = WynnchangerClient.getSwapState();
+        GlintType selectedGlint = state.getGlint(picker.entry.type()).orElse(GlintType.NONE);
+        for (GlintCell cell : picker.cells) {
+            boolean hovered = cell.contains(mouseX, mouseY);
+            boolean selected = cell.type == selectedGlint;
+
+            int background = hovered ? 0xFF2A2A2A : 0xFF222222;
+            int border = selected ? 0xFF6BD88A : 0xFF000000;
+            context.fill(cell.x, cell.y, cell.x + cell.width, cell.y + cell.height, background);
+            context.fill(cell.x, cell.y, cell.x + cell.width, cell.y + 1, border);
+            context.fill(cell.x, cell.y + cell.height - 1, cell.x + cell.width, cell.y + cell.height, border);
+            context.fill(cell.x, cell.y, cell.x + 1, cell.y + cell.height, border);
+            context.fill(cell.x + cell.width - 1, cell.y, cell.x + cell.width, cell.y + cell.height, border);
+
+            int iconX = cell.x + 4;
+            int iconY = cell.y + (cell.height - GLINT_ICON_SIZE) / 2;
+            picker.previewStack.ifPresent(stack -> WynnGlint.withPreviewGlint(cell.type, () ->
+                    SkinModelOverride.withOverridesSuppressed(() -> context.drawItem(stack, iconX, iconY))));
+
+            int textX = cell.x + GLINT_ICON_SIZE + 10;
+            int textY = cell.y + (cell.height - textRenderer.fontHeight) / 2;
+            int textColor = selected ? 0xC7F4D2 : 0xFFFFFF;
+            context.drawTextWithShadow(textRenderer, cell.type.getDisplayName(), textX, textY, textColor);
+        }
     }
 
     private static int scaleWidth(int width, float ratio, int min, int max) {
@@ -333,6 +428,82 @@ public class SkinChangerScreen extends Screen {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static final class GlintPicker {
+        private final SkinEntry entry;
+        private final Optional<ItemStack> previewStack;
+        private final List<GlintCell> cells;
+        private final int x;
+        private final int y;
+        private final int width;
+        private final int height;
+
+        private GlintPicker(SkinEntry entry, Optional<ItemStack> previewStack, List<GlintCell> cells,
+                            int x, int y, int width, int height) {
+            this.entry = entry;
+            this.previewStack = previewStack;
+            this.cells = cells;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
+
+        private static GlintPicker create(SkinEntry entry, Optional<ItemStack> previewStack,
+                                          int screenWidth, int screenHeight, int mouseX, int mouseY) {
+            List<GlintType> options = new ArrayList<>(GlintSupport.getAvailableGlints());
+            if (options.isEmpty()) {
+                options.add(GlintType.NONE);
+            }
+
+            int columns = options.size() <= 1 ? 1 : (screenWidth < 420 ? 2 : 3);
+            columns = Math.min(columns, options.size());
+            int rawColumnWidth = (screenWidth - 40 - GLINT_PANEL_PADDING * 2 - GLINT_COLUMN_GAP * (columns - 1)) / columns;
+            int columnWidth = Math.max(90, rawColumnWidth);
+            int rows = (options.size() + columns - 1) / columns;
+
+            int panelWidth = GLINT_PANEL_PADDING * 2 + columns * columnWidth + (columns - 1) * GLINT_COLUMN_GAP;
+            int panelHeight = GLINT_PANEL_PADDING * 2 + GLINT_PANEL_HEADER_HEIGHT
+                    + rows * GLINT_ROW_HEIGHT + Math.max(0, rows - 1) * GLINT_ROW_GAP;
+
+            int maxX = Math.max(10, screenWidth - panelWidth - 10);
+            int maxY = Math.max(10, screenHeight - panelHeight - 10);
+            int x = clamp(mouseX - panelWidth / 2, 10, maxX);
+            int y = clamp(mouseY - panelHeight / 2, 10, maxY);
+
+            int gridX = x + GLINT_PANEL_PADDING;
+            int gridY = y + GLINT_PANEL_PADDING + GLINT_PANEL_HEADER_HEIGHT;
+            List<GlintCell> cells = new ArrayList<>(options.size());
+            for (int i = 0; i < options.size(); i++) {
+                int col = i % columns;
+                int row = i / columns;
+                int cellX = gridX + col * (columnWidth + GLINT_COLUMN_GAP);
+                int cellY = gridY + row * (GLINT_ROW_HEIGHT + GLINT_ROW_GAP);
+                cells.add(new GlintCell(options.get(i), cellX, cellY, columnWidth, GLINT_ROW_HEIGHT));
+            }
+
+            return new GlintPicker(entry, previewStack, List.copyOf(cells), x, y, panelWidth, panelHeight);
+        }
+
+        private boolean contains(double mouseX, double mouseY) {
+            return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
+        }
+
+        private GlintType getOptionAt(double mouseX, double mouseY) {
+            for (GlintCell cell : cells) {
+                if (cell.contains(mouseX, mouseY)) {
+                    return cell.type;
+                }
+            }
+            return null;
+        }
+    }
+
+    private record GlintCell(GlintType type, int x, int y, int width, int height) {
+        private boolean contains(double mouseX, double mouseY) {
+            return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
+        }
     }
 
     private record Layout(
@@ -500,8 +671,7 @@ public class SkinChangerScreen extends Screen {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (button == 1 && isMouseOver(mouseX, mouseY)) {
-                WynnchangerClient.getSwapState().clearSelection(entry.type());
-                rebuildWidgets();
+                openGlintPicker(entry, previewStack, (int) mouseX, (int) mouseY);
                 return true;
             }
             return super.mouseClicked(mouseX, mouseY, button);

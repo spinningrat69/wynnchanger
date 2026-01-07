@@ -22,6 +22,7 @@ public class SkinSwapState {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Logger LOGGER = LogUtils.getLogger();
     private final Map<SkinType, Identifier> selectedByType = new EnumMap<>(SkinType.class);
+    private final Map<SkinType, GlintType> glintByType = new EnumMap<>(SkinType.class);
     private Path configPath;
     private boolean dirty;
 
@@ -42,6 +43,24 @@ public class SkinSwapState {
         return Optional.ofNullable(selectedByType.get(type));
     }
 
+    public void setGlint(SkinType type, GlintType glint) {
+        if (type == null || type == SkinType.UNKNOWN) {
+            return;
+        }
+        if (glint == null || glint.isNone()) {
+            if (glintByType.remove(type) != null) {
+                dirty = true;
+            }
+            return;
+        }
+        glintByType.put(type, glint);
+        dirty = true;
+    }
+
+    public Optional<GlintType> getGlint(SkinType type) {
+        return Optional.ofNullable(glintByType.get(type));
+    }
+
     public boolean hasSelection(SkinType type) {
         return selectedByType.containsKey(type);
     }
@@ -51,6 +70,15 @@ public class SkinSwapState {
             return;
         }
         if (selectedByType.remove(type) != null) {
+            dirty = true;
+        }
+    }
+
+    public void clearGlint(SkinType type) {
+        if (type == null || type == SkinType.UNKNOWN) {
+            return;
+        }
+        if (glintByType.remove(type) != null) {
             dirty = true;
         }
     }
@@ -109,6 +137,7 @@ public class SkinSwapState {
             return;
         }
         selectedByType.clear();
+        glintByType.clear();
         try (Reader reader = Files.newBufferedReader(path)) {
             JsonObject root = GSON.fromJson(reader, JsonObject.class);
             if (root == null) {
@@ -123,6 +152,20 @@ public class SkinSwapState {
                         selectedByType.put(type, modelId);
                     } catch (IllegalArgumentException ex) {
                         LOGGER.warn("Skipping invalid skin entry: {}", entry.getKey());
+                    }
+                }
+            }
+            JsonObject glints = root.getAsJsonObject("glints");
+            if (glints != null) {
+                for (Map.Entry<String, JsonElement> entry : glints.entrySet()) {
+                    try {
+                        SkinType type = SkinType.valueOf(entry.getKey());
+                        GlintType glint = GlintType.fromName(entry.getValue().getAsString());
+                        if (glint != null && !glint.isNone()) {
+                            glintByType.put(type, glint);
+                        }
+                    } catch (IllegalArgumentException ex) {
+                        LOGGER.warn("Skipping invalid glint entry: {}", entry.getKey());
                     }
                 }
             }
@@ -143,6 +186,11 @@ public class SkinSwapState {
                 selections.addProperty(entry.getKey().name(), entry.getValue().toString());
             }
             root.add("selections", selections);
+            JsonObject glints = new JsonObject();
+            for (Map.Entry<SkinType, GlintType> entry : glintByType.entrySet()) {
+                glints.addProperty(entry.getKey().name(), entry.getValue().name());
+            }
+            root.add("glints", glints);
             try (Writer writer = Files.newBufferedWriter(path)) {
                 GSON.toJson(root, writer);
             }

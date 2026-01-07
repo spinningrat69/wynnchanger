@@ -50,6 +50,7 @@ public class WynnchangerClient implements ClientModInitializer {
 
     private void initRegistry() {
         ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(SKIN_REGISTRY);
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new GlintSupport());
     }
 
     private void initState() {

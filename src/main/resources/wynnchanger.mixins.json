@@ -4,7 +4,9 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "ArmorFeatureRendererMixin",
-    "ItemModelManagerMixin"
+    "ItemModelManagerMixin",
+    "ItemRenderStateAccessor",
+    "ItemRenderStateLayerAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

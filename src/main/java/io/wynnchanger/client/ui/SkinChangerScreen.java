@@ -50,13 +50,14 @@ public class SkinChangerScreen extends Screen {
     private static final int CLEAR_BUTTON_HEIGHT = 20;
     private static final int GLINT_PANEL_PADDING = 12;
     private static final int GLINT_PANEL_HEADER_HEIGHT = 22;
-    private static final int GLINT_ROW_HEIGHT = 26;
+    private static final int GLINT_ROW_HEIGHT = 46;
     private static final int GLINT_COLUMN_GAP = 10;
     private static final int GLINT_ROW_GAP = 6;
-    private static final int GLINT_ICON_SIZE = 18;
+    private static final int GLINT_ICON_SIZE = 24;
+    private static final int GLINT_LABEL_GAP = 4;
     private static final int GLINT_PANEL_BORDER = 1;
     private static final int GLINT_PANEL_SHADOW = 3;
-    private static final int GLINT_PANEL_HEADER_COLOR = 0xFF252525;
+    private static final int GLINT_PANEL_HEADER_COLOR = 0xFF181818;
     private static final int GLINT_PANEL_BODY_COLOR = 0xFF181818;
     private static final int GLINT_PANEL_BORDER_COLOR = 0xFF000000;
     private static final int GLINT_PANEL_SHADOW_COLOR = 0x66000000;
@@ -443,7 +444,7 @@ public class SkinChangerScreen extends Screen {
             boolean hovered = cell.contains(mouseX, mouseY, picker.scrollOffset);
             boolean selected = cell.type == selectedGlint;
 
-            int background = selected ? 0xFF2B2B2B : (hovered ? 0xFF262626 : 0xFF1F1F1F);
+            int background = selected ? 0xFF2A2A2A : (hovered ? 0xFF242424 : 0xFF1E1E1E);
             int border = 0xFF0C0C0C;
             context.fill(cell.x, cellY, cell.x + cell.width, cellY + cell.height, background);
             context.fill(cell.x, cellY, cell.x + cell.width, cellY + 1, border);
@@ -451,21 +452,24 @@ public class SkinChangerScreen extends Screen {
             context.fill(cell.x, cellY, cell.x + 1, cellY + cell.height, border);
             context.fill(cell.x + cell.width - 1, cellY, cell.x + cell.width, cellY + cell.height, border);
 
-            int iconX = cell.x + 4;
-            int iconY = cellY + (cell.height - GLINT_ICON_SIZE) / 2;
+            int iconX = cell.x + (cell.width - GLINT_ICON_SIZE) / 2;
+            int iconY = cellY + 6;
             picker.previewStack.ifPresent(stack -> WynnGlint.withPreviewGlint(cell.type, () ->
                     SkinModelOverride.withOverridesSuppressed(() -> context.drawItem(stack, iconX, iconY))));
 
-            int textX = cell.x + GLINT_ICON_SIZE + 10;
-            int textY = cellY + (cell.height - textRenderer.fontHeight) / 2;
-            int textColor = hovered ? 0xFFFFFF : 0xE6E6E6;
-            context.drawTextWithShadow(textRenderer, cell.type.getDisplayName(), textX, textY, textColor);
+            int maxLabelWidth = cell.width - 6;
+            String label = textRenderer.trimToWidth(cell.type.getDisplayName(), maxLabelWidth);
+            int textWidth = textRenderer.getWidth(label);
+            int textX = cell.x + (cell.width - textWidth) / 2;
+            int textY = iconY + GLINT_ICON_SIZE + GLINT_LABEL_GAP;
+            int textColor = hovered ? 0xFFFFFF : 0xDADADA;
+            context.drawTextWithShadow(textRenderer, label, textX, textY, textColor);
 
             if (selected) {
-                Text check = Text.literal("✓").formatted(Formatting.GREEN);
+                Text check = Text.literal("✓");
                 int checkX = cell.x + cell.width - 10;
-                int checkY = cellY + (cell.height - textRenderer.fontHeight) / 2;
-                context.drawTextWithShadow(textRenderer, check, checkX, checkY, 0x7FE7A1);
+                int checkY = cellY + 4;
+                context.drawTextWithShadow(textRenderer, check, checkX, checkY, 0xFFFFFF);
             }
         }
         context.disableScissor();
@@ -550,10 +554,10 @@ public class SkinChangerScreen extends Screen {
                 options.add(GlintType.NONE);
             }
 
-            int columns = screenWidth < 560 ? 2 : 4;
+            int columns = screenWidth < 520 ? 2 : 4;
             columns = Math.min(columns, options.size());
             int rawColumnWidth = (screenWidth - 40 - GLINT_PANEL_PADDING * 2 - GLINT_COLUMN_GAP * (columns - 1)) / columns;
-            int columnWidth = Math.max(96, rawColumnWidth);
+            int columnWidth = Math.max(84, rawColumnWidth);
             int rows = (options.size() + columns - 1) / columns;
             int visibleRows = Math.min(rows, 4);
 
@@ -582,7 +586,7 @@ public class SkinChangerScreen extends Screen {
             int gridX = x + GLINT_PANEL_PADDING;
             int gridY = y + GLINT_PANEL_PADDING + GLINT_PANEL_HEADER_HEIGHT;
             int gridWidth = panelWidth - GLINT_PANEL_PADDING * 2;
-            columnWidth = (gridWidth - (columns - 1) * GLINT_COLUMN_GAP) / columns;
+            columnWidth = Math.max(84, (gridWidth - (columns - 1) * GLINT_COLUMN_GAP) / columns);
             int viewHeight = visibleRows * GLINT_ROW_HEIGHT + Math.max(0, visibleRows - 1) * GLINT_ROW_GAP;
             int contentHeight = rows * GLINT_ROW_HEIGHT + Math.max(0, rows - 1) * GLINT_ROW_GAP;
             int maxScroll = Math.max(0, contentHeight - viewHeight);

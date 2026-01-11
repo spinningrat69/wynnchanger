@@ -1,5 +1,7 @@
 package io.wynnchanger.client;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public enum GlintType {
@@ -56,12 +58,25 @@ public enum GlintType {
         if (value == null || value.isBlank()) {
             return null;
         }
-        String normalized = value.trim().replace(' ', '_').toUpperCase(Locale.ROOT);
+        String normalized = value.trim().replace(' ', '_').replace('-', '_').toUpperCase(Locale.ROOT);
+        if (normalized.equals("OFF") || normalized.equals("CLEAR") || normalized.equals("NONE")) {
+            return NONE;
+        }
         for (GlintType type : values()) {
             if (type.name().equals(normalized) || type.displayName.toUpperCase(Locale.ROOT).equals(normalized)) {
                 return type;
             }
         }
         return null;
+    }
+
+    public static List<String> getCommandNames() {
+        List<String> names = new ArrayList<>();
+        for (GlintType type : values()) {
+            names.add(type.displayName.toLowerCase(Locale.ROOT));
+        }
+        names.add("off");
+        names.add("clear");
+        return names;
     }
 }

@@ -248,8 +248,17 @@ public class SkinChangerScreen extends Screen {
         float effectiveMouseY = (float) mouseY;
         effectiveMouseX = MathHelper.clamp(effectiveMouseX, 0.0f, (float) width);
         effectiveMouseY = MathHelper.clamp(effectiveMouseY, 0.0f, (float) height);
+        MatrixStack matrices = context.getMatrices();
+        matrices.push();
+        matrices.translate(0.0f, 0.0f, 300.0f);
+        RenderSystem.disableScissor();
+        RenderSystem.enableDepthTest();
+        RenderSystem.depthMask(true);
         RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT);
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
         drawPreviewEntity(context, centerX, centerY, size, effectiveMouseX, effectiveMouseY, previewExtraYaw, client.player);
+        RenderSystem.disableDepthTest();
+        matrices.pop();
     }
 
     private static void drawPreviewEntity(DrawContext context, float centerX, float centerY, int size, float mouseX, float mouseY, float extraYaw, LivingEntity entity) {

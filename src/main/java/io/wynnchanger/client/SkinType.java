@@ -23,6 +23,51 @@ public enum SkinType {
         return displayName;
     }
 
+    public static SkinType fromCommand(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().replace(' ', '_').replace('-', '_').toUpperCase(java.util.Locale.ROOT);
+        switch (normalized) {
+            case "RELIC":
+                normalized = "RELIK";
+                break;
+            case "HELM":
+                normalized = "HELMET";
+                break;
+            case "LEGS":
+            case "PANTS":
+                normalized = "LEGGINGS";
+                break;
+            case "BOOT":
+                normalized = "BOOTS";
+                break;
+            default:
+                break;
+        }
+        try {
+            return SkinType.valueOf(normalized);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    public static java.util.List<String> getCommandNames() {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (SkinType type : values()) {
+            if (type == UNKNOWN) {
+                continue;
+            }
+            names.add(type.displayName.toLowerCase(java.util.Locale.ROOT));
+        }
+        names.add("relic");
+        names.add("helm");
+        names.add("legs");
+        names.add("pants");
+        names.add("boot");
+        return names;
+    }
+
     public static SkinType fromModelPath(String modelPath) {
         if (modelPath.contains("/weapon/assassin/") || modelPath.contains("/skin/dagger/")) {
             return DAGGER;

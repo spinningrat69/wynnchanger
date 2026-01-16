@@ -35,6 +35,9 @@ public enum SkinType {
             case "HELM":
                 normalized = "HELMET";
                 break;
+            case "CHEST":
+                normalized = "CHESTPLATE";
+                break;
             case "LEGS":
             case "PANTS":
                 normalized = "LEGGINGS";
@@ -62,6 +65,27 @@ public enum SkinType {
         }
         names.add("relic");
         names.add("helm");
+        names.add("chest");
+        names.add("legs");
+        names.add("pants");
+        names.add("boot");
+        return names;
+    }
+
+    public boolean isArmorType() {
+        return this == HELMET || this == CHESTPLATE || this == LEGGINGS || this == BOOTS;
+    }
+
+    public static java.util.List<String> getArmorCommandNames() {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (SkinType type : values()) {
+            if (!type.isArmorType()) {
+                continue;
+            }
+            names.add(type.displayName.toLowerCase(java.util.Locale.ROOT));
+        }
+        names.add("helm");
+        names.add("chest");
         names.add("legs");
         names.add("pants");
         names.add("boot");

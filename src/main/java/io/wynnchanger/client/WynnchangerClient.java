@@ -1,5 +1,6 @@
 package io.wynnchanger.client;
 
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.logging.LogUtils;
 import io.wynnchanger.client.render.WynnHatFeatureRenderer;
@@ -25,6 +26,7 @@ import org.slf4j.Logger;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+
 public class WynnchangerClient implements ClientModInitializer {
     public static final String MOD_ID = "wynnchanger";
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -106,6 +108,15 @@ public class WynnchangerClient implements ClientModInitializer {
                                                     String skinInput = StringArgumentType.getString(context, "skin");
                                                     return handleSetSkin(context.getSource(), typeInput, skinInput);
                                                 }))))
+                        .then(ClientCommandManager.literal("setvisibility")
+                                .then(ClientCommandManager.argument("type", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> CommandSource.suggestMatching(SkinType.getArmorCommandNames(), builder))
+                                        .then(ClientCommandManager.argument("visible", BoolArgumentType.bool())
+                                                .executes(context -> {
+                                                    String typeInput = StringArgumentType.getString(context, "type");
+                                                    boolean visible = BoolArgumentType.getBool(context, "visible");
+                                                    return handleSetVisibility(context.getSource(), typeInput, visible);
+                                                }))))
         ));
     }
 
@@ -154,6 +165,23 @@ public class WynnchangerClient implements ClientModInitializer {
         SWAP_STATE.setSelection(type, selection.get().modelId());
         SWAP_STATE.saveIfDirty();
         source.sendFeedback(Text.literal("Set " + type.getDisplayName() + " skin to " + selection.get().displayName()));
+        return 1;
+    }
+
+    private static int handleSetVisibility(net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource source,
+                                           String typeInput, boolean visible) {
+        SkinType type = SkinType.fromCommand(typeInput);
+        if (type == null || !type.isArmorType()) {
+            source.sendError(Text.literal("Unknown armor type: " + typeInput));
+            return 0;
+        }
+        SWAP_STATE.setVisibility(type, visible);
+        SWAP_STATE.saveIfDirty();
+        if (visible) {
+            source.sendFeedback(Text.literal("Showing " + type.getDisplayName() + " model."));
+        } else {
+            source.sendFeedback(Text.literal("Hiding " + type.getDisplayName() + " model."));
+        }
         return 1;
     }
 

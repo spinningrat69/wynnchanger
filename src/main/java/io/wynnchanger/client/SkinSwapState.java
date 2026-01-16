@@ -14,6 +14,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -23,6 +24,7 @@ public class SkinSwapState {
     private static final Logger LOGGER = LogUtils.getLogger();
     private final Map<SkinType, Identifier> selectedByType = new EnumMap<>(SkinType.class);
     private final Map<SkinType, GlintType> glintByType = new EnumMap<>(SkinType.class);
+    private final Set<SkinType> hiddenTypes = EnumSet.noneOf(SkinType.class);
     private Path configPath;
     private boolean dirty;
 
@@ -59,6 +61,28 @@ public class SkinSwapState {
 
     public Optional<GlintType> getGlint(SkinType type) {
         return Optional.ofNullable(glintByType.get(type));
+    }
+
+    public void setVisibility(SkinType type, boolean visible) {
+        if (type == null || type == SkinType.UNKNOWN) {
+            return;
+        }
+        boolean changed;
+        if (visible) {
+            changed = hiddenTypes.remove(type);
+        } else {
+            changed = hiddenTypes.add(type);
+        }
+        if (changed) {
+            dirty = true;
+        }
+    }
+
+    public boolean isHidden(SkinType type) {
+        if (type == null) {
+            return false;
+        }
+        return hiddenTypes.contains(type);
     }
 
     public boolean hasSelection(SkinType type) {
@@ -138,6 +162,7 @@ public class SkinSwapState {
         }
         selectedByType.clear();
         glintByType.clear();
+        hiddenTypes.clear();
         try (Reader reader = Files.newBufferedReader(path)) {
             JsonObject root = GSON.fromJson(reader, JsonObject.class);
             if (root == null) {
@@ -169,6 +194,28 @@ public class SkinSwapState {
                     }
                 }
             }
+            JsonObject visibility = root.getAsJsonObject("visibility");
+            if (visibility != null) {
+                for (Map.Entry<String, JsonElement> entry : visibility.entrySet()) {
+                    try {
+                        SkinType type = SkinType.valueOf(entry.getKey());
+                        JsonElement value = entry.getValue();
+                        boolean visible = true;
+                        if (value.isJsonPrimitive()) {
+                            if (value.getAsJsonPrimitive().isBoolean()) {
+                                visible = value.getAsBoolean();
+                            } else if (value.getAsJsonPrimitive().isString()) {
+                                visible = Boolean.parseBoolean(value.getAsString());
+                            }
+                        }
+                        if (!visible) {
+                            hiddenTypes.add(type);
+                        }
+                    } catch (IllegalArgumentException ex) {
+                        LOGGER.warn("Skipping invalid visibility entry: {}", entry.getKey());
+                    }
+                }
+            }
         } catch (IOException ignored) {
         } finally {
             dirty = false;
@@ -191,6 +238,13 @@ public class SkinSwapState {
                 glints.addProperty(entry.getKey().name(), entry.getValue().name());
             }
             root.add("glints", glints);
+            if (!hiddenTypes.isEmpty()) {
+                JsonObject visibility = new JsonObject();
+                for (SkinType type : hiddenTypes) {
+                    visibility.addProperty(type.name(), false);
+                }
+                root.add("visibility", visibility);
+            }
             try (Writer writer = Files.newBufferedWriter(path)) {
                 GSON.toJson(root, writer);
             }

@@ -35,13 +35,13 @@ import java.util.Map;
 import java.util.Optional;
 
 public class SkinChangerScreen extends Screen {
-    private static final int COLUMNS = 3;
-    private static final int ROWS = 5;
-    private static final int ITEMS_PER_PAGE = COLUMNS * ROWS;
+    private static final int MAX_COLUMNS = 3;
+    private static final int MAX_ROWS = 5;
     private static final int MIN_BUTTON_WIDTH = 170;
     private static final int MAX_BUTTON_WIDTH = 190;
     private static final int MIN_NARROW_BUTTON_WIDTH = 120;
     private static final int BUTTON_HEIGHT = 60;
+    private static final int MIN_BUTTON_HEIGHT = 44;
     private static final int TYPE_BUTTON_HEIGHT = 20;
     private static final int SEARCH_HEIGHT = 20;
     private static final int CLEAR_BUTTON_HEIGHT = 20;
@@ -71,11 +71,6 @@ public class SkinChangerScreen extends Screen {
         boolean keepSearchFocus = searchField != null && searchField.isFocused();
         clearChildren();
         glintPicker = null;
-        refreshDetectedType();
-        SkinType activeType = getActiveType();
-        entries = filterEntries(WynnchangerClient.getSkinRegistry().getSkins(activeType));
-        clampPage();
-
         SkinType[] types = {
                 SkinType.DAGGER,
                 SkinType.SPEAR,
@@ -86,6 +81,10 @@ public class SkinChangerScreen extends Screen {
         };
 
         layout = Layout.of(width, height, types.length);
+        refreshDetectedType();
+        SkinType activeType = getActiveType();
+        entries = filterEntries(WynnchangerClient.getSkinRegistry().getSkins(activeType));
+        clampPage();
 
         int searchX = layout.searchX;
         int searchY = layout.searchY;
@@ -100,17 +99,17 @@ public class SkinChangerScreen extends Screen {
         searchField.setFocused(keepSearchFocus);
         addDrawableChild(searchField);
 
-        int startIndex = page * ITEMS_PER_PAGE;
-        int endIndex = Math.min(entries.size(), startIndex + ITEMS_PER_PAGE);
+        int startIndex = page * layout.itemsPerPage;
+        int endIndex = Math.min(entries.size(), startIndex + layout.itemsPerPage);
         int buttonIndex = 0;
 
         for (int i = startIndex; i < endIndex; i++) {
             SkinEntry entry = entries.get(i);
-            int row = buttonIndex / COLUMNS;
-            int col = buttonIndex % COLUMNS;
+            int row = buttonIndex / layout.columns;
+            int col = buttonIndex % layout.columns;
             int x = layout.gridStartX + col * (layout.buttonWidth + layout.gridPadding);
-            int y = layout.gridStartY + row * (BUTTON_HEIGHT + layout.gridPadding);
-            addDrawableChild(buildSkinButton(entry, x, y, layout.buttonWidth, BUTTON_HEIGHT));
+            int y = layout.gridStartY + row * (layout.buttonHeight + layout.gridPadding);
+            addDrawableChild(buildSkinButton(entry, x, y, layout.buttonWidth, layout.buttonHeight));
             buttonIndex++;
         }
 
@@ -128,7 +127,7 @@ public class SkinChangerScreen extends Screen {
                 rebuildWidgets();
             }).dimensions(x, y, layout.sidebarRight - layout.sidebarLeft, TYPE_BUTTON_HEIGHT).build());
         }
-        if (entries.size() > ITEMS_PER_PAGE) {
+        if (entries.size() > layout.itemsPerPage) {
             addDrawableChild(ButtonWidget.builder(Text.literal("< Prev"), button -> {
                 page = Math.max(0, page - 1);
                 rebuildWidgets();
@@ -194,7 +193,15 @@ public class SkinChangerScreen extends Screen {
     }
 
     private int getMaxPage() {
-        return Math.max(0, (entries.size() - 1) / ITEMS_PER_PAGE);
+        int itemsPerPage = getItemsPerPage();
+        return Math.max(0, (entries.size() - 1) / itemsPerPage);
+    }
+
+    private int getItemsPerPage() {
+        if (layout == null) {
+            return MAX_COLUMNS * MAX_ROWS;
+        }
+        return Math.max(1, layout.itemsPerPage);
     }
 
     @Override
@@ -250,9 +257,9 @@ public class SkinChangerScreen extends Screen {
         effectiveMouseY = MathHelper.clamp(effectiveMouseY, 0.0f, (float) height);
         MatrixStack matrices = context.getMatrices();
         matrices.push();
-        matrices.translate(0.0f, 0.0f, 300.0f);
         RenderSystem.disableScissor();
         RenderSystem.enableDepthTest();
+        RenderSystem.depthFunc(GL11.GL_LEQUAL);
         RenderSystem.depthMask(true);
         RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT);
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -410,7 +417,11 @@ public class SkinChangerScreen extends Screen {
             int sidebarRight,
             int gridPadding,
             int typePadding,
+            int columns,
+            int rows,
             int buttonWidth,
+            int buttonHeight,
+            int itemsPerPage,
             int gridTotalWidth,
             int gridStartX,
             int gridStartY,
@@ -433,22 +444,48 @@ public class SkinChangerScreen extends Screen {
             int panelTop = panelPadding;
             int panelBottom = height - panelPadding;
 
-            int sidebarWidth = scaleWidth(width, 0.22f, 200, 260);
-            int sidebarRightPadding = scaleWidth(width, 0.02f, 16, 28);
+            int sidebarWidth = scaleWidth(width, 0.22f, 160, 260);
+            int sidebarRightPadding = scaleWidth(width, 0.02f, 12, 24);
             int sidebarLeft = panelLeft;
             int sidebarRight = Math.min(panelLeft + sidebarWidth, panelRight - sidebarRightPadding);
 
-            int gridGap = scaleWidth(width, 0.02f, 12, 20);
+            int gridGap = scaleWidth(width, 0.02f, 10, 20);
             int gridAreaLeft = sidebarRight + gridGap;
             int gridAreaRight = panelRight;
             int gridAreaWidth = Math.max(0, gridAreaRight - gridAreaLeft);
             int gridPadding = scaleWidth(width, 0.008f, 6, 10);
-            int maxWidth = (gridAreaWidth - (COLUMNS - 1) * gridPadding) / COLUMNS;
-            int buttonWidth = Math.min(MAX_BUTTON_WIDTH, Math.max(MIN_BUTTON_WIDTH, maxWidth));
-            if (maxWidth < MIN_BUTTON_WIDTH) {
-                buttonWidth = Math.max(MIN_NARROW_BUTTON_WIDTH, maxWidth);
+            int columns = MAX_COLUMNS;
+            int buttonWidth = 0;
+            int gridTotalWidth = 0;
+            for (int candidate = MAX_COLUMNS; candidate >= 1; candidate--) {
+                int maxWidth = (gridAreaWidth - (candidate - 1) * gridPadding) / candidate;
+                if (maxWidth <= 0) {
+                    continue;
+                }
+                int minWidth = candidate == MAX_COLUMNS ? MIN_BUTTON_WIDTH : MIN_NARROW_BUTTON_WIDTH;
+                if (candidate > 1 && maxWidth < minWidth) {
+                    continue;
+                }
+                int candidateWidth = Math.min(MAX_BUTTON_WIDTH, maxWidth);
+                if (candidate > 1) {
+                    candidateWidth = Math.max(minWidth, candidateWidth);
+                } else {
+                    candidateWidth = Math.max(80, candidateWidth);
+                }
+                int totalWidth = candidate * candidateWidth + (candidate - 1) * gridPadding;
+                if (totalWidth > gridAreaWidth && candidate > 1) {
+                    continue;
+                }
+                columns = candidate;
+                buttonWidth = candidateWidth;
+                gridTotalWidth = totalWidth;
+                break;
             }
-            int gridTotalWidth = COLUMNS * buttonWidth + (COLUMNS - 1) * gridPadding;
+            if (buttonWidth == 0) {
+                columns = 1;
+                buttonWidth = Math.max(80, Math.min(MAX_BUTTON_WIDTH, gridAreaWidth));
+                gridTotalWidth = buttonWidth;
+            }
             int gridStartX = gridAreaLeft + Math.max(0, (gridAreaWidth - gridTotalWidth) / 2);
 
             int searchTopOffset = scaleHeight(height, 0.035f, 18, 28);
@@ -458,7 +495,25 @@ public class SkinChangerScreen extends Screen {
             int gridStartY = searchY + SEARCH_HEIGHT + searchBottomGap;
 
             int navGap = scaleHeight(height, 0.01f, 4, 8);
-            int navY = gridStartY + ROWS * (BUTTON_HEIGHT + gridPadding) + navGap;
+            int navHeight = 20;
+            int closeGap = scaleHeight(height, 0.02f, 8, 14);
+            int navLimit = Math.min(panelBottom, height - 30 - closeGap - navHeight);
+            int availableHeight = navLimit - gridStartY - navGap;
+            availableHeight = Math.max(0, availableHeight);
+            int rows = Math.min(MAX_ROWS, Math.max(1, availableHeight / (MIN_BUTTON_HEIGHT + gridPadding)));
+            int maxButtonHeight = rows > 0
+                    ? (availableHeight - Math.max(0, rows - 1) * gridPadding) / rows
+                    : 0;
+            int buttonHeight = Math.min(BUTTON_HEIGHT, maxButtonHeight);
+            if (maxButtonHeight >= MIN_BUTTON_HEIGHT) {
+                buttonHeight = Math.max(MIN_BUTTON_HEIGHT, buttonHeight);
+            }
+            if (buttonHeight <= 0) {
+                buttonHeight = Math.max(32, Math.min(BUTTON_HEIGHT, availableHeight));
+            }
+            int gridHeight = rows * buttonHeight + Math.max(0, rows - 1) * gridPadding;
+            int navY = gridStartY + gridHeight + navGap;
+            int itemsPerPage = columns * rows;
 
             int typeStartY = searchY;
             int typeStartX = sidebarLeft;
@@ -468,15 +523,15 @@ public class SkinChangerScreen extends Screen {
             int clearGap = scaleHeight(height, 0.012f, 6, 12);
             int clearY = typeStartY + typeListHeight + clearGap;
 
-            int previewTopGap = scaleHeight(height, 0.03f, 18, 30);
-            int previewDrop = scaleHeight(height, 0.05f, 24, 40);
+            int previewTopGap = scaleHeight(height, 0.028f, 12, 24);
+            int previewDrop = scaleHeight(height, 0.045f, 16, 36);
             int previewBottomPadding = scaleHeight(height, 0.008f, 2, 6);
             int previewTop = clearY + CLEAR_BUTTON_HEIGHT + previewTopGap + previewDrop;
             int previewBottom = panelBottom - previewBottomPadding;
             int previewLeft = sidebarLeft;
             int previewRight = sidebarRight;
 
-            int emptyMessageOffset = Math.round(BUTTON_HEIGHT * 0.45f);
+            int emptyMessageOffset = Math.round(buttonHeight * 0.45f);
 
             return new Layout(
                     panelLeft,
@@ -487,7 +542,11 @@ public class SkinChangerScreen extends Screen {
                     sidebarRight,
                     gridPadding,
                     typePadding,
+                    columns,
+                    rows,
                     buttonWidth,
+                    buttonHeight,
+                    itemsPerPage,
                     gridTotalWidth,
                     gridStartX,
                     gridStartY,

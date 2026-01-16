@@ -1,5 +1,6 @@
 package io.wynnchanger.mixin;
 
+import io.wynnchanger.client.SkinSwapState;
 import io.wynnchanger.client.SkinType;
 import io.wynnchanger.client.WynnchangerClient;
 import net.minecraft.client.MinecraftClient;
@@ -18,9 +19,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.EnumSet;
+
 @Mixin(ArmorFeatureRenderer.class)
 public abstract class ArmorFeatureRendererMixin {
-    private static final ThreadLocal<Boolean> HIDE_HEAD_SLOT = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<EnumSet<EquipmentSlot>> HIDDEN_SLOTS =
+            ThreadLocal.withInitial(() -> EnumSet.noneOf(EquipmentSlot.class));
 
     @Shadow
     protected abstract void renderArmor(MatrixStack matrices, VertexConsumerProvider vertexConsumers, ItemStack stack,
@@ -33,7 +37,9 @@ public abstract class ArmorFeatureRendererMixin {
     private void wynnchanger$trackHeadVisibility(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light,
                                                  BipedEntityRenderState state, float limbAngle, float limbDistance,
                                                  CallbackInfo ci) {
-        HIDE_HEAD_SLOT.set(shouldHideHead(state));
+        EnumSet<EquipmentSlot> hidden = HIDDEN_SLOTS.get();
+        hidden.clear();
+        hidden.addAll(resolveHiddenSlots(state));
     }
 
     @Inject(
@@ -43,34 +49,50 @@ public abstract class ArmorFeatureRendererMixin {
     private void wynnchanger$clearHeadVisibility(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light,
                                                  BipedEntityRenderState state, float limbAngle, float limbDistance,
                                                  CallbackInfo ci) {
-        HIDE_HEAD_SLOT.set(false);
+        HIDDEN_SLOTS.get().clear();
     }
 
     @Redirect(
             method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/render/entity/state/BipedEntityRenderState;FF)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/render/entity/feature/ArmorFeatureRenderer;renderArmor(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;Lnet/minecraft/item/ItemStack;Lnet/minecraft/entity/EquipmentSlot;ILnet/minecraft/client/render/entity/model/BipedEntityModel;)V",
-                    ordinal = 3
+                    target = "Lnet/minecraft/client/render/entity/feature/ArmorFeatureRenderer;renderArmor(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;Lnet/minecraft/item/ItemStack;Lnet/minecraft/entity/EquipmentSlot;ILnet/minecraft/client/render/entity/model/BipedEntityModel;)V"
             )
     )
     private void wynnchanger$skipHeadArmor(ArmorFeatureRenderer<?, ?, ?> instance, MatrixStack matrices,
                                            VertexConsumerProvider vertexConsumers, ItemStack stack,
                                            EquipmentSlot slot, int light, BipedEntityModel<?> armorModel) {
-        if (slot == EquipmentSlot.HEAD && Boolean.TRUE.equals(HIDE_HEAD_SLOT.get())) {
+        if (HIDDEN_SLOTS.get().contains(slot)) {
             return;
         }
         renderArmor(matrices, vertexConsumers, stack, slot, light, armorModel);
     }
 
-    private static boolean shouldHideHead(BipedEntityRenderState state) {
+    private static EnumSet<EquipmentSlot> resolveHiddenSlots(BipedEntityRenderState state) {
+        EnumSet<EquipmentSlot> hidden = EnumSet.noneOf(EquipmentSlot.class);
         if (!(state instanceof PlayerEntityRenderState playerState)) {
-            return false;
+            return hidden;
         }
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || playerState.id != client.player.getId()) {
-            return false;
+            return hidden;
         }
-        return WynnchangerClient.getSwapState().getSelection(SkinType.HAT).isPresent();
+        SkinSwapState swapState = WynnchangerClient.getSwapState();
+        if (swapState.isHidden(SkinType.HELMET)) {
+            hidden.add(EquipmentSlot.HEAD);
+        }
+        if (swapState.isHidden(SkinType.CHESTPLATE)) {
+            hidden.add(EquipmentSlot.CHEST);
+        }
+        if (swapState.isHidden(SkinType.LEGGINGS)) {
+            hidden.add(EquipmentSlot.LEGS);
+        }
+        if (swapState.isHidden(SkinType.BOOTS)) {
+            hidden.add(EquipmentSlot.FEET);
+        }
+        if (swapState.getSelection(SkinType.HAT).isPresent()) {
+            hidden.add(EquipmentSlot.HEAD);
+        }
+        return hidden;
     }
 }

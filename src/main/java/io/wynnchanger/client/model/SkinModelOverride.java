@@ -8,12 +8,16 @@ import io.wynnchanger.client.WynnchangerClient;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.CustomModelDataComponent;
+import net.minecraft.component.type.EquippableComponent;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.ModelTransformationMode;
+import net.minecraft.item.equipment.EquipmentAsset;
+import net.minecraft.item.equipment.EquipmentAssetKeys;
 import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.Identifier;
-import net.minecraft.entity.EquipmentSlot;
 
 import java.util.List;
 import java.util.Optional;
@@ -58,6 +62,7 @@ public final class SkinModelOverride {
 
         ItemStack copy = original.copy();
         applyMappingToStack(copy, mapping.get());
+        applyEquipmentModel(copy, type, selection.get());
         return copy;
     }
 
@@ -150,5 +155,47 @@ public final class SkinModelOverride {
             targetDamage = maxDamage;
         }
         stack.setDamage(targetDamage);
+    }
+
+    private static void applyEquipmentModel(ItemStack stack, SkinType type, Identifier modelId) {
+        if (stack == null || modelId == null || type == null || !type.isArmorType()) {
+            return;
+        }
+        String assetName = resolveEquipmentAssetName(type, modelId);
+        if (assetName == null || assetName.isBlank()) {
+            return;
+        }
+        EquipmentSlot slot = switch (type) {
+            case HELMET -> EquipmentSlot.HEAD;
+            case CHESTPLATE -> EquipmentSlot.CHEST;
+            case LEGGINGS -> EquipmentSlot.LEGS;
+            case BOOTS -> EquipmentSlot.FEET;
+            default -> null;
+        };
+        if (slot == null) {
+            return;
+        }
+        RegistryKey<EquipmentAsset> assetKey = EquipmentAssetKeys.register(assetName);
+        EquippableComponent equippable = EquippableComponent.builder(slot)
+                .model(assetKey)
+                .build();
+        stack.set(DataComponentTypes.EQUIPPABLE, equippable);
+    }
+
+    private static String resolveEquipmentAssetName(SkinType type, Identifier modelId) {
+        String path = modelId.getPath();
+        int lastSlash = path.lastIndexOf('/');
+        String name = lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
+        String suffix = switch (type) {
+            case HELMET -> "_helmet";
+            case CHESTPLATE -> "_chestplate";
+            case LEGGINGS -> "_leggings";
+            case BOOTS -> "_boots";
+            default -> "";
+        };
+        if (!suffix.isEmpty() && name.endsWith(suffix)) {
+            return name.substring(0, name.length() - suffix.length());
+        }
+        return name;
     }
 }

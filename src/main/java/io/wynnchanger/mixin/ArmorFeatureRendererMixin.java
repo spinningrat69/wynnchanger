@@ -2,6 +2,7 @@ package io.wynnchanger.mixin;
 
 import io.wynnchanger.client.SkinSwapState;
 import io.wynnchanger.client.SkinType;
+import io.wynnchanger.client.model.SkinModelOverride;
 import io.wynnchanger.client.WynnchangerClient;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -12,6 +13,7 @@ import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.ModelTransformationMode;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -65,7 +67,9 @@ public abstract class ArmorFeatureRendererMixin {
         if (HIDDEN_SLOTS.get().contains(slot)) {
             return;
         }
-        renderArmor(matrices, vertexConsumers, stack, slot, light, armorModel);
+        ItemStack effectiveStack = SkinModelOverride.overrideStack(stack, MinecraftClient.getInstance().player,
+                ModelTransformationMode.NONE);
+        renderArmor(matrices, vertexConsumers, effectiveStack, slot, light, armorModel);
     }
 
     private static EnumSet<EquipmentSlot> resolveHiddenSlots(BipedEntityRenderState state) {

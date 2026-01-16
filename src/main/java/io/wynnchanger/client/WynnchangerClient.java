@@ -23,9 +23,12 @@ import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 public class WynnchangerClient implements ClientModInitializer {
     public static final String MOD_ID = "wynnchanger";
@@ -103,6 +106,11 @@ public class WynnchangerClient implements ClientModInitializer {
                                 .then(ClientCommandManager.argument("type", StringArgumentType.word())
                                         .suggests((ctx, builder) -> CommandSource.suggestMatching(SkinType.getCommandNames(), builder))
                                         .then(ClientCommandManager.argument("skin", StringArgumentType.greedyString())
+                                                .suggests((ctx, builder) -> {
+                                                    String typeInput = StringArgumentType.getString(ctx, "type");
+                                                    SkinType type = SkinType.fromCommand(typeInput);
+                                                    return CommandSource.suggestMatching(buildSkinSuggestions(type), builder);
+                                                })
                                                 .executes(context -> {
                                                     String typeInput = StringArgumentType.getString(context, "type");
                                                     String skinInput = StringArgumentType.getString(context, "skin");
@@ -205,6 +213,19 @@ public class WynnchangerClient implements ClientModInitializer {
                 .replace(" ", "")
                 .replace("_", "")
                 .replace("-", "");
+    }
+
+    private static List<String> buildSkinSuggestions(SkinType type) {
+        Set<String> suggestions = new LinkedHashSet<>();
+        suggestions.add("none");
+        suggestions.add("clear");
+        suggestions.add("off");
+        if (type != null && type != SkinType.UNKNOWN) {
+            for (SkinEntry entry : SKIN_REGISTRY.getSkins(type)) {
+                suggestions.add(entry.displayName());
+            }
+        }
+        return new ArrayList<>(suggestions);
     }
 
     private static void requestOpenGui() {

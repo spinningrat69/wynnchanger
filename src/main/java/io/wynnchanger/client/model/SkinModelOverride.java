@@ -6,7 +6,9 @@ import io.wynnchanger.client.SkinSwapState;
 import io.wynnchanger.client.SkinType;
 import io.wynnchanger.client.WynnchangerClient;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.client.util.SkinTextures;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.CustomModelDataComponent;
 import net.minecraft.component.type.EquippableComponent;
@@ -132,6 +134,9 @@ public final class SkinModelOverride {
         if (local.squaredDistanceTo(candidate) > CLONE_RADIUS_SQ) {
             return false;
         }
+        if (!hasMatchingSkin(candidate, local)) {
+            return false;
+        }
         String name = candidate.getGameProfile().getName();
         boolean suspiciousName = isSuspiciousName(name);
         boolean inTabList = handler != null && handler.getPlayerListEntry(candidate.getUuid()) != null;
@@ -158,6 +163,16 @@ public final class SkinModelOverride {
             }
         }
         return !hasVisible;
+    }
+
+    private static boolean hasMatchingSkin(PlayerEntity candidate, PlayerEntity local) {
+        if (!(candidate instanceof AbstractClientPlayerEntity candidateClient)
+                || !(local instanceof AbstractClientPlayerEntity localClient)) {
+            return true;
+        }
+        SkinTextures candidateSkin = candidateClient.getSkinTextures();
+        SkinTextures localSkin = localClient.getSkinTextures();
+        return candidateSkin.equals(localSkin);
     }
 
     private static boolean isHandMode(ModelTransformationMode mode) {

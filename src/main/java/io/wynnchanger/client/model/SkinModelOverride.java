@@ -56,13 +56,17 @@ public final class SkinModelOverride {
             return original;
         }
         Optional<SkinModelMapping> mapping = SkinMappingResolver.resolveMappingForSelection(original, selection.get());
-        if (mapping.isEmpty()) {
+        if (mapping.isEmpty() && !type.isArmorType()) {
             return original;
         }
 
         ItemStack copy = original.copy();
-        applyMappingToStack(copy, mapping.get());
-        applyEquipmentModel(copy, type, selection.get());
+        if (mapping.isPresent()) {
+            applyMappingToStack(copy, mapping.get());
+        }
+        if (type.isArmorType()) {
+            applyEquipmentModel(copy, type, selection.get());
+        }
         return copy;
     }
 
@@ -161,8 +165,8 @@ public final class SkinModelOverride {
         if (stack == null || modelId == null || type == null || !type.isArmorType()) {
             return;
         }
-        String assetName = resolveEquipmentAssetName(type, modelId);
-        if (assetName == null || assetName.isBlank()) {
+        Optional<RegistryKey<EquipmentAsset>> assetKey = resolveEquipmentAssetKey(type, modelId);
+        if (assetKey.isEmpty()) {
             return;
         }
         EquipmentSlot slot = switch (type) {
@@ -175,11 +179,21 @@ public final class SkinModelOverride {
         if (slot == null) {
             return;
         }
-        RegistryKey<EquipmentAsset> assetKey = EquipmentAssetKeys.register(assetName);
         EquippableComponent equippable = EquippableComponent.builder(slot)
-                .model(assetKey)
+                .model(assetKey.get())
                 .build();
         stack.set(DataComponentTypes.EQUIPPABLE, equippable);
+    }
+
+    public static Optional<RegistryKey<EquipmentAsset>> resolveEquipmentAssetKey(SkinType type, Identifier modelId) {
+        if (modelId == null || type == null || !type.isArmorType()) {
+            return Optional.empty();
+        }
+        String assetName = resolveEquipmentAssetName(type, modelId);
+        if (assetName == null || assetName.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(EquipmentAssetKeys.register(assetName));
     }
 
     private static String resolveEquipmentAssetName(SkinType type, Identifier modelId) {

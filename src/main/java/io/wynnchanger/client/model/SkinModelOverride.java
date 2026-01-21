@@ -6,11 +6,13 @@ import io.wynnchanger.client.SkinSwapState;
 import io.wynnchanger.client.SkinType;
 import io.wynnchanger.client.WynnchangerClient;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.CustomModelDataComponent;
 import net.minecraft.component.type.EquippableComponent;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.item.equipment.EquipmentAsset;
@@ -24,6 +26,7 @@ import java.util.Optional;
 
 public final class SkinModelOverride {
     private static final ThreadLocal<Boolean> SUPPRESS_OVERRIDE = ThreadLocal.withInitial(() -> false);
+    private static final double CLONE_RADIUS_SQ = 1024.0;
 
     private SkinModelOverride() {
     }
@@ -96,7 +99,7 @@ public final class SkinModelOverride {
             return mode == ModelTransformationMode.GUI && isRelevantStack(original, client.player);
         }
         if (client.player.getId() != entity.getId()) {
-            return false;
+            return entity instanceof PlayerEntity player && isCloneCandidate(player, client.player, client);
         }
         if (isHandMode(mode)) {
             return true;
@@ -116,6 +119,45 @@ public final class SkinModelOverride {
                 || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.CHEST))
                 || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.LEGS))
                 || ItemStack.areEqual(original, entity.getEquippedStack(EquipmentSlot.FEET));
+    }
+
+    public static boolean isCloneCandidate(PlayerEntity candidate, PlayerEntity local, MinecraftClient client) {
+        if (candidate == null || local == null) {
+            return false;
+        }
+        if (candidate.getId() == local.getId()) {
+            return false;
+        }
+        ClientPlayNetworkHandler handler = client.getNetworkHandler();
+        if (local.squaredDistanceTo(candidate) > CLONE_RADIUS_SQ) {
+            return false;
+        }
+        String name = candidate.getGameProfile().getName();
+        boolean suspiciousName = isSuspiciousName(name);
+        boolean inTabList = handler != null && handler.getPlayerListEntry(candidate.getUuid()) != null;
+        if (!suspiciousName && inTabList) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean isSuspiciousName(String name) {
+        if (name == null || name.isBlank()) {
+            return true;
+        }
+        boolean hasVisible = false;
+        for (int i = 0; i < name.length(); ) {
+            int codePoint = name.codePointAt(i);
+            i += Character.charCount(codePoint);
+            int type = Character.getType(codePoint);
+            if (type == Character.PRIVATE_USE || Character.isISOControl(codePoint)) {
+                return true;
+            }
+            if (!Character.isWhitespace(codePoint)) {
+                hasVisible = true;
+            }
+        }
+        return !hasVisible;
     }
 
     private static boolean isHandMode(ModelTransformationMode mode) {

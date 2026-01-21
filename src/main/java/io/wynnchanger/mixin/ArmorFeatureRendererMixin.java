@@ -14,7 +14,9 @@ import net.minecraft.client.render.entity.model.BipedEntityModel;
 import net.minecraft.client.render.entity.state.BipedEntityRenderState;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.ModelTransformationMode;
 import org.spongepowered.asm.mixin.Mixin;
@@ -30,6 +32,7 @@ import java.util.EnumSet;
 public abstract class ArmorFeatureRendererMixin {
     private static final ThreadLocal<EnumSet<EquipmentSlot>> HIDDEN_SLOTS =
             ThreadLocal.withInitial(() -> EnumSet.noneOf(EquipmentSlot.class));
+    private static final ThreadLocal<LivingEntity> CURRENT_ENTITY = new ThreadLocal<>();
 
     @Shadow
     protected abstract void renderArmor(MatrixStack matrices, VertexConsumerProvider vertexConsumers, ItemStack stack,
@@ -45,6 +48,7 @@ public abstract class ArmorFeatureRendererMixin {
         EnumSet<EquipmentSlot> hidden = HIDDEN_SLOTS.get();
         hidden.clear();
         hidden.addAll(resolveHiddenSlots(state));
+        CURRENT_ENTITY.set(resolveRenderEntity(state));
     }
 
     @Inject(
@@ -55,6 +59,7 @@ public abstract class ArmorFeatureRendererMixin {
                                                  BipedEntityRenderState state, float limbAngle, float limbDistance,
                                                  CallbackInfo ci) {
         HIDDEN_SLOTS.get().clear();
+        CURRENT_ENTITY.set(null);
     }
 
     @Redirect(
@@ -70,7 +75,9 @@ public abstract class ArmorFeatureRendererMixin {
         if (HIDDEN_SLOTS.get().contains(slot)) {
             return;
         }
-        ItemStack effectiveStack = SkinModelOverride.overrideStack(stack, MinecraftClient.getInstance().player,
+        LivingEntity renderEntity = CURRENT_ENTITY.get();
+        LivingEntity contextEntity = renderEntity != null ? renderEntity : MinecraftClient.getInstance().player;
+        ItemStack effectiveStack = SkinModelOverride.overrideStack(stack, contextEntity,
                 ModelTransformationMode.NONE);
         GlintType glint = WynnGlint.resolveGlintForStack(effectiveStack);
         VertexConsumerProvider consumers = vertexConsumers;
@@ -106,6 +113,18 @@ public abstract class ArmorFeatureRendererMixin {
             hidden.add(EquipmentSlot.HEAD);
         }
         return hidden;
+    }
+
+    private static LivingEntity resolveRenderEntity(BipedEntityRenderState state) {
+        if (!(state instanceof PlayerEntityRenderState playerState)) {
+            return null;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null) {
+            return null;
+        }
+        Entity entity = client.world.getEntityById(playerState.id);
+        return entity instanceof LivingEntity living ? living : null;
     }
 
 }
